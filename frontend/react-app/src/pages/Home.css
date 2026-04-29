@@ -65,6 +65,17 @@
   box-shadow: 0 0 0 3px rgba(124, 140, 248, 0.12);
 }
 
+.agents-button {
+  background: #1e2637;
+}
+
+.agents-button:hover {
+  border-color: #7c8cf8;
+  color: #7c8cf8;
+  background: rgba(124, 140, 248, 0.08);
+  box-shadow: 0 0 0 3px rgba(124, 140, 248, 0.12);
+}
+
 .home-button:active {
   transform: scale(0.98);
 }

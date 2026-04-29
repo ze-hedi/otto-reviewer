@@ -22,6 +22,12 @@ function Home() {
           >
             Create Chat
           </button>
+          <button 
+            className="home-button agents-button"
+            onClick={() => navigate('/agents')}
+          >
+            Agents
+          </button>
         </div>
       </div>
     </div>

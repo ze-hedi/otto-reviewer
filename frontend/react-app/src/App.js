@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import WorkflowBuilder from './WorkflowBuilder';
 import ChatPage from './pages/ChatPage';
+import AgentsPage from './pages/AgentsPage';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/workflow" element={<WorkflowBuilder />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/agents" element={<AgentsPage />} />
       </Routes>
     </BrowserRouter>
   );
