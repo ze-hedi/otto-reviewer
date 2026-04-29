@@ -2,6 +2,7 @@
   "name": "otto-reviewer",
   "version": "1.0.0",
   "description": "Class-based wrapper for Pi coding agent SDK",
+  "type": "module",
   "main": "pi-agent.ts",
   "scripts": {
     "example:basic": "tsx examples.ts basic",

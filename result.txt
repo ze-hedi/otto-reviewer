@@ -1,0 +1,6 @@
+
+> otto-reviewer@1.0.0 example:basic
+> tsx examples.ts basic
+
+=== Basic Example ===
+
