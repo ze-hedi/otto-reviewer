@@ -1,0 +1,21 @@
+{
+  "name": "otto-reviewer",
+  "version": "1.0.0",
+  "description": "Class-based wrapper for Pi coding agent SDK",
+  "main": "pi-agent.ts",
+  "scripts": {
+    "example:basic": "tsx examples.ts basic",
+    "example:pr": "tsx examples.ts pr",
+    "example:conversation": "tsx examples.ts conversation",
+    "example:logging": "tsx examples.ts logging",
+    "example:nonblocking": "tsx examples.ts nonblocking"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "latest",
+    "@mariozechner/pi-ai": "latest"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
