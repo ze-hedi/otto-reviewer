@@ -8,6 +8,7 @@ import './load-env.js';
 import express from 'express';
 import cors from 'cors';
 import { PiAgent, PiAgentConfig } from '../pi-agent.js';
+import { agentLogger } from './agent-logger.js';
 
 const app = express();
 const PORT = 5000;
@@ -179,9 +180,20 @@ app.post('/runtime/chat/:id', async (req, res) => {
         const sub = event.assistantMessageEvent;
         if (sub?.type === 'text_delta') {
           send({ type: 'delta', text: sub.delta });
+          // Log text deltas
+          agentLogger.log(id, 'message_update', {
+            textDelta: sub.delta,
+            timestamp: new Date().toISOString()
+          });
         }
       } else if (event.type === 'tool_execution_start') {
         send({ type: 'tool_start', name: event.toolName, args: event.args });
+        // Log tool execution start
+        agentLogger.log(id, 'tool_execution_start', {
+          toolName: event.toolName,
+          args: event.args,
+          timestamp: new Date().toISOString()
+        });
       } else if (event.type === 'tool_execution_end') {
         send({
           type: 'tool_end',
@@ -189,12 +201,35 @@ app.post('/runtime/chat/:id', async (req, res) => {
           result: typeof event.result === 'string' ? event.result : JSON.stringify(event.result),
           isError: event.isError,
         });
+        // Log tool execution end
+        agentLogger.log(id, 'tool_execution_end', {
+          toolName: event.toolName,
+          result: typeof event.result === 'string' ? event.result : event.result,
+          isError: event.isError,
+          timestamp: new Date().toISOString()
+        });
+      } else if (event.type === 'message_end') {
+        // Log message end
+        agentLogger.log(id, 'message_end', {
+          timestamp: new Date().toISOString()
+        });
+      } else if (event.type === 'prompt_end') {
+        // Log prompt end
+        agentLogger.log(id, 'prompt_end', {
+          timestamp: new Date().toISOString()
+        });
       }
     });
     console.log(`[runtime] chat ✓ agent ${id} turn complete`);
     send({ type: 'done' });
   } catch (err: any) {
     console.error(`[runtime] chat ✗ agent ${id}: ${err.message}`);
+    // Log error
+    agentLogger.log(id, 'error', {
+      message: err.message ?? String(err),
+      stack: err.stack,
+      timestamp: new Date().toISOString()
+    });
     send({ type: 'error', message: err.message ?? String(err) });
   } finally {
     res.end();
@@ -230,8 +265,76 @@ app.delete('/runtime/agents/:id', (req, res) => {
     global.activeAgent   = null;
     global.activeAgentId = null;
   }
+  // Clear logs for removed agent
+  agentLogger.clearLogs(id);
   console.log(`[runtime] Agent ${id} removed from runtime`);
   res.json({ success: true });
+});
+
+/**
+ * GET /runtime/logs/:id
+ *
+ * Retrieves and prints the logs for a specific agent.
+ * Returns formatted logs as JSON and prints them to console.
+ */
+app.get('/runtime/logs/:id', (req, res) => {
+  const { id } = req.params;
+  const logs = agentLogger.getLogs(id);
+  
+  if (logs.length === 0) {
+    res.json({ 
+      success: true, 
+      agentId: id, 
+      message: 'No logs found',
+      logs: [] 
+    });
+    return;
+  }
+
+  // Print logs to console
+  console.log(agentLogger.formatLogs(id));
+
+  // Return logs as JSON
+  res.json({
+    success: true,
+    agentId: id,
+    count: logs.length,
+    logs: logs
+  });
+});
+
+/**
+ * GET /runtime/logs
+ *
+ * Retrieves and prints logs for all agents.
+ * Returns formatted logs as JSON and prints them to console.
+ */
+app.get('/runtime/logs', (_req, res) => {
+  const allLogs = agentLogger.getAllLogs();
+  
+  if (allLogs.size === 0) {
+    res.json({ 
+      success: true, 
+      message: 'No logs found',
+      agents: {} 
+    });
+    return;
+  }
+
+  // Print all logs to console
+  console.log(agentLogger.formatAllLogs());
+
+  // Convert Map to object for JSON response
+  const logsObject: Record<string, any[]> = {};
+  allLogs.forEach((logs, agentId) => {
+    logsObject[agentId] = logs;
+  });
+
+  res.json({
+    success: true,
+    count: allLogs.size,
+    agents: logsObject
+  });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
