@@ -1,5 +1,6 @@
 // mem0.ts
 // Self-contained wrapper for mem0ai OSS in-process memory
+// LLM: Anthropic claude-sonnet-4-6 | Embedder: Ollama all-minilm (local, 384 dims)
 
 import { Memory } from "mem0ai/oss";
 import type {
@@ -11,14 +12,14 @@ import type {
 export type { Message, MemoryItem, SearchResult };
 
 export interface Mem0Config {
-  /** OpenAI API key (defaults to process.env.OPENAI_API_KEY) */
-  openAiApiKey?: string;
-  /** LLM model to use for memory extraction (default: "gpt-4o-mini") */
+  /** Anthropic API key (defaults to process.env.ANTHROPIC_API_KEY) */
+  anthropicApiKey?: string;
+  /** Claude model to use for memory extraction (default: "claude-sonnet-4-6") */
   llmModel?: string;
-  /** Embedding model (default: "text-embedding-3-small") */
+  /** Ollama embedding model (default: "all-minilm") */
   embedModel?: string;
-  /** Embedding dimension matching the embed model (default: 1536) */
-  embedDimension?: number;
+  /** Ollama base URL (default: "http://localhost:11434") */
+  ollamaBaseUrl?: string;
   /** SQLite history db path (default: "memory.db") */
   historyDbPath?: string;
   /** In-memory vector store collection name (default: "memories") */
@@ -72,34 +73,36 @@ export class Mem0 {
   private memory: Memory;
 
   constructor(config: Mem0Config = {}) {
-    const apiKey = config.openAiApiKey ?? process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    const anthropicApiKey = config.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY;
+    if (!anthropicApiKey) {
       throw new Error(
-        "OpenAI API key required. Pass openAiApiKey in config or set OPENAI_API_KEY."
+        "Anthropic API key required. Pass anthropicApiKey in config or set ANTHROPIC_API_KEY."
       );
     }
 
+    const ollamaBaseUrl = config.ollamaBaseUrl ?? "http://localhost:11434";
+
     this.memory = new Memory({
       llm: {
-        provider: "openai",
+        provider: "anthropic",
         config: {
-          apiKey,
-          model: config.llmModel ?? "gpt-4o-mini",
+          apiKey: anthropicApiKey,
+          model: config.llmModel ?? "claude-sonnet-4-6",
         },
       },
       embedder: {
-        provider: "openai",
+        provider: "ollama",
         config: {
-          apiKey,
-          model: config.embedModel ?? "text-embedding-3-small",
-          embeddingDims: config.embedDimension ?? 1536,
+          model: config.embedModel ?? "all-minilm",
+          baseURL: ollamaBaseUrl,
+          embeddingDims: 384,
         },
       },
       vectorStore: {
         provider: "memory",
         config: {
           collectionName: config.collectionName ?? "memories",
-          dimension: config.embedDimension ?? 1536,
+          dimension: 384,
         },
       },
       historyDbPath: config.historyDbPath ?? "memory.db",
