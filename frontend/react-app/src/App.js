@@ -12,6 +12,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/workflow" element={<WorkflowBuilder />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/:agentId" element={<ChatPage />} />
         <Route path="/agents" element={<AgentsPage />} />
       </Routes>
     </BrowserRouter>

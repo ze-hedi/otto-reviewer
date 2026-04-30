@@ -1,26 +1,115 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './AgentsPage.css';
 
 function AgentsPage() {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null);
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [model, setModel] = useState('');
   const [skills, setSkills] = useState([]);
   const [systemPrompt, setSystemPrompt] = useState(null);
 
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingAgent(null);
+    setFormName('');
+    setFormDescription('');
+    setModel('');
+    setSkills([]);
+    setSystemPrompt(null);
+  };
+
+  const apiCall = async (url, options) => {
+    const res = await fetch(url, options);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Server returned unexpected response (status ${res.status}): ${text.slice(0, 200)}`);
+    }
+    if (!res.ok) throw new Error(data.error || 'Unknown error');
+    return data;
+  };
+
+  const handleCreate = async () => {
+    if (!formName.trim() || !formDescription.trim() || !model) return;
+    try {
+      const agent = await apiCall('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: formName, description: formDescription, model, systemPrompt: systemPrompt || null, skills }),
+      });
+      setAgents((prev) => [...prev, agent]);
+      resetForm();
+    } catch (err) {
+      alert(`Failed to create agent: ${err.message}`);
+    }
+  };
+
+  const openEditForm = async (agent) => {
+    setFormName(agent.name);
+    setFormDescription(agent.description);
+    setModel(agent.model || '');
+    setSkills([]);
+    setSystemPrompt(null);
+    setEditingAgent(agent);
+    setShowForm(true);
+
+    try {
+      const files = await apiCall(`/api/agents/${agent._id}/files`);
+      const soul = files.find((f) => f.type === 'soul');
+      const skillsFile = files.find((f) => f.type === 'skills');
+      if (soul) setSystemPrompt({ name: 'system_prompt.md', content: soul.content });
+      if (skillsFile) setSkills([{ name: 'skills.md', content: skillsFile.content, preloaded: true }]);
+    } catch {}
+  };
+
+  const handleUpdate = async () => {
+    if (!formName.trim() || !formDescription.trim() || !model) return;
+    try {
+      const agent = await apiCall(`/api/agents/${editingAgent._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: formName, description: formDescription, model, systemPrompt: systemPrompt || null, skills }),
+      });
+      setAgents((prev) => prev.map((a) => (a._id === agent._id ? agent : a)));
+      resetForm();
+    } catch (err) {
+      alert(`Failed to update agent: ${err.message}`);
+    }
+  };
+
+  const handleRun = async (agent) => {
+    try {
+      const files = await apiCall(`/api/agents/${agent._id}/files`);
+
+      const res = await fetch('http://localhost:5000/runtime/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent, files }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Runtime server error');
+
+      navigate(`/chat/${agent._id}`, { state: { agent } });
+    } catch (err) {
+      alert(`Failed to start agent: ${err.message}`);
+    }
+  };
+
   const handleSkillsLoad = (e) => {
     const files = Array.from(e.target.files);
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        setSkills((prev) => [
-          ...prev,
-          { name: file.name, content: ev.target.result },
-        ]);
+        setSkills((prev) => [...prev, { name: file.name, content: ev.target.result }]);
       };
       reader.readAsText(file);
     });
@@ -72,7 +161,7 @@ function AgentsPage() {
 
         {showForm ? (
           <div className="create-agent-form">
-            <h2 className="create-agent-title">New Agent</h2>
+            <h2 className="create-agent-title">{editingAgent ? 'Edit Agent' : 'New Agent'}</h2>
             <div className="form-group">
               <label className="form-label" htmlFor="agent-name">Name</label>
               <input
@@ -167,11 +256,14 @@ function AgentsPage() {
               )}
             </div>
             <div className="form-actions">
-              <button className="agent-action-btn view-btn" onClick={() => { setShowForm(false); setFormName(''); setFormDescription(''); setModel(''); setSkills([]); setSystemPrompt(null); }}>
+              <button className="agent-action-btn view-btn" onClick={resetForm}>
                 Cancel
               </button>
-              <button className="agent-action-btn edit-btn create-agent-submit-btn">
-                Create Agent
+              <button
+                className="agent-action-btn edit-btn create-agent-submit-btn"
+                onClick={editingAgent ? handleUpdate : handleCreate}
+              >
+                {editingAgent ? 'Update Agent' : 'Create Agent'}
               </button>
             </div>
           </div>
@@ -188,8 +280,8 @@ function AgentsPage() {
                 <div className="agent-type">{agent.type}</div>
                 <p className="agent-description">{agent.description}</p>
                 <div className="agent-actions">
-                  <button className="agent-action-btn view-btn">View</button>
-                  <button className="agent-action-btn edit-btn">Edit</button>
+                  <button className="agent-action-btn view-btn" onClick={() => handleRun(agent)}>Run</button>
+                  <button className="agent-action-btn edit-btn" onClick={() => openEditForm(agent)}>Edit</button>
                 </div>
               </div>
             ))}

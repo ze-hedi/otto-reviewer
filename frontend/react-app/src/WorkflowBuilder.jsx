@@ -23,6 +23,7 @@ const WorkflowBuilder = () => {
 
   // Canvas drop - create new node
   const handleDrop = useCallback((type, x, y) => {
+    console.log("valid types ")
     if (!VALID_TYPES.includes(type)) {
       draggedType.current = null;
       return;
