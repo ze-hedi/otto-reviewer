@@ -11,7 +11,7 @@ const WorkflowBuilder = () => {
   const [connectionMode, setConnectionMode] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [selectedConnection, setSelectedConnection] = useState(null);
-  const [undoStack, setUndoStack] = useState([]);
+  const [history, setHistory] = useState([]);
   const [deleteConnBtnPos, setDeleteConnBtnPos] = useState(null);
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
@@ -20,6 +20,15 @@ const WorkflowBuilder = () => {
   const [loadingTools, setLoadingTools] = useState(true);
   const [toolsError, setToolsError] = useState(null);
   const draggedType = useRef(null);
+  const snapshotRef = useRef({ nodes, connections });
+
+  useEffect(() => {
+    snapshotRef.current = { nodes, connections };
+  }, [nodes, connections]);
+
+  const saveSnapshot = useCallback(() => {
+    setHistory(prev => [...prev, { nodes: snapshotRef.current.nodes, connections: snapshotRef.current.connections }]);
+  }, []);
 
   // Fetch agents from database on mount
   useEffect(() => {
@@ -102,10 +111,10 @@ const WorkflowBuilder = () => {
       };
     }
 
+    saveSnapshot();
     setNodes((prev) => [...prev, newNode]);
-    setUndoStack((prev) => [...prev, { action: 'add-node', nodeId: newNode.id }]);
     draggedType.current = null;
-  }, []);
+  }, [saveSnapshot]);
 
   // Node drag move
   const handleNodeDragMove = useCallback((nodeId, newLeft, newTop) => {
@@ -118,12 +127,18 @@ const WorkflowBuilder = () => {
     );
   }, []);
 
+  // Save snapshot before node drag starts (called on first mouse move)
+  const handleNodeDragStart = useCallback(() => {
+    saveSnapshot();
+  }, [saveSnapshot]);
+
   // Delete node
   const handleDeleteNode = useCallback((nodeId) => {
+    saveSnapshot();
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setConnections((prev) => prev.filter((c) => c.from !== nodeId && c.to !== nodeId));
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
-  }, [selectedNodeId]);
+  }, [saveSnapshot, selectedNodeId]);
 
   // Node click (for connection mode)
   const handleNodeClick = useCallback((nodeId) => {
@@ -148,15 +163,15 @@ const WorkflowBuilder = () => {
       );
 
       if (!exists) {
+        saveSnapshot();
         setConnections((prev) => [...prev, newConn]);
-        setUndoStack((prev) => [...prev, { action: 'add-connection', ...newConn }]);
       }
 
       setSelectedNodeId(null);
     } else {
       setSelectedNodeId(nodeId);
     }
-  }, [connectionMode, selectedNodeId, connections]);
+  }, [connectionMode, selectedNodeId, connections, saveSnapshot]);
 
   // Handle drag start (for connections via handles)
   const handleHandleDragStart = useCallback((fromNodeId, fromSide, toNodeId, toSide) => {
@@ -177,10 +192,10 @@ const WorkflowBuilder = () => {
     );
 
     if (!exists) {
+      saveSnapshot();
       setConnections((prev) => [...prev, newConn]);
-      setUndoStack((prev) => [...prev, { action: 'add-connection', ...newConn }]);
     }
-  }, [connections]);
+  }, [connections, saveSnapshot]);
 
   // Connection click
   const handleConnectionClick = useCallback((conn, midpoint) => {
@@ -190,6 +205,7 @@ const WorkflowBuilder = () => {
 
   // Delete connection
   const handleDeleteConnection = useCallback((conn) => {
+    saveSnapshot();
     setConnections((prev) =>
       prev.filter(
         (c) =>
@@ -203,7 +219,7 @@ const WorkflowBuilder = () => {
     );
     setSelectedConnection(null);
     setDeleteConnBtnPos(null);
-  }, []);
+  }, [saveSnapshot]);
 
   // Canvas click (clear selection)
   const handleCanvasClick = useCallback(() => {
@@ -222,22 +238,12 @@ const WorkflowBuilder = () => {
 
   // Undo
   const handleUndo = useCallback(() => {
-    if (undoStack.length === 0) return;
-
-    const lastAction = undoStack[undoStack.length - 1];
-    setUndoStack((prev) => prev.slice(0, -1));
-
-    if (lastAction.action === 'add-node') {
-      handleDeleteNode(lastAction.nodeId);
-    } else if (lastAction.action === 'add-connection') {
-      handleDeleteConnection({
-        from: lastAction.from,
-        fromSide: lastAction.fromSide,
-        to: lastAction.to,
-        toSide: lastAction.toSide,
-      });
-    }
-  }, [undoStack, handleDeleteNode, handleDeleteConnection]);
+    if (history.length === 0) return;
+    const snapshot = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+    setNodes(snapshot.nodes);
+    setConnections(snapshot.connections);
+  }, [history]);
 
   // Export schema (disabled - functionality removed)
   const handleExport = useCallback(() => {
@@ -253,19 +259,19 @@ const WorkflowBuilder = () => {
 
   // Clear canvas
   const handleClear = useCallback(() => {
+    saveSnapshot();
     setNodes([]);
     setConnections([]);
-    setUndoStack([]);
     setSelectedNodeId(null);
     setSelectedConnection(null);
     setDeleteConnBtnPos(null);
-  }, []);
+  }, [saveSnapshot]);
 
   return (
     <div className="wf-shell">
       <Header
         connectionMode={connectionMode}
-        canUndo={undoStack.length > 0}
+        canUndo={history.length > 0}
         onToggleConnectionMode={handleToggleConnectionMode}
         onUndo={handleUndo}
         onExport={handleExport}
@@ -289,6 +295,7 @@ const WorkflowBuilder = () => {
           selectedNodeId={selectedNodeId}
           onDrop={handleDrop}
           onDeleteNode={handleDeleteNode}
+          onNodeDragStart={handleNodeDragStart}
           onNodeDragMove={handleNodeDragMove}
           onHandleDragStart={handleHandleDragStart}
           onNodeClick={handleNodeClick}

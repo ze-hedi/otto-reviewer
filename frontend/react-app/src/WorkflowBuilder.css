@@ -363,21 +363,12 @@ html, body {
 }
 
 /* ── Dropped node cards ──────────────────────────────────────── */
+
+/* Positioning wrapper — no visual chrome here */
 .wf-node {
   position: absolute;
-  min-width: 110px;
-  background: #1e2637;
-  border: 1px solid #2a3350;
-  border-radius: 10px;
-  padding: 14px 16px 10px;
   cursor: move;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
   z-index: 2;
-  transition: border-color 0.15s, box-shadow 0.15s;
   animation: nodeIn 0.2s ease-out;
 }
 
@@ -386,20 +377,80 @@ html, body {
   to   { opacity: 1; transform: scale(1); }
 }
 
-.wf-node:hover {
-  border-color: #7c8cf8;
-  box-shadow: 0 0 0 3px rgba(124, 140, 248, 0.12);
+/* Circle layout: stack circle + label vertically */
+.wf-node--tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
-.wf-node.selected {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+/* ── Shape base ──────────────────────────────────────────────── */
+.wf-shape {
+  position: relative;
+  background: #1e2637;
+  border: 1.5px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+/* ── Shape geometry ──────────────────────────────────────────── */
+.wf-shape--wide-rect {
+  width: 180px;
+  min-height: 68px;
+  border-radius: 10px;
+  padding: 12px 18px;
+}
+
+.wf-shape--circle {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+}
+
+.wf-shape--square {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+}
+
+/* ── Color theming (type × state) ───────────────────────────── */
+
+/* Agent — indigo */
+.wf-node--agent    .wf-shape { border-color: #2a3350; }
+.wf-node--agent:hover .wf-shape { border-color: #7c8cf8; box-shadow: 0 0 0 3px rgba(124, 140, 248, 0.12); }
+.wf-node--agent.selected .wf-shape { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25); }
+
+/* Tool — cyan */
+.wf-node--tool    .wf-shape { border-color: #0c3040; }
+.wf-node--tool:hover .wf-shape { border-color: #06b6d4; box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12); }
+.wf-node--tool.selected .wf-shape { border-color: #0891b2; box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.25); }
+
+/* Artefact — amber */
+.wf-node--artefact    .wf-shape { border-color: #44391a; }
+.wf-node--artefact:hover .wf-shape { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+.wf-node--artefact.selected .wf-shape { border-color: #d97706; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25); }
+
+/* ── Node content ────────────────────────────────────────────── */
 .wf-node-icon {
   font-size: 1.3rem;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   line-height: 1;
+}
+
+/* Larger icon inside circle (no competing label) */
+.wf-shape--circle .wf-node-icon {
+  font-size: 1.8rem;
+  margin-bottom: 0;
+}
+
+.wf-node-icon--artefact {
+  color: #f59e0b;
+  font-size: 1.5rem;
 }
 
 .wf-node-label {
@@ -409,42 +460,14 @@ html, body {
   white-space: nowrap;
 }
 
-/* Tool nodes on canvas */
-.wf-node--tool {
-  border-color: #0c3040;
+/* Label below a circle — clamp width to avoid overflow */
+.wf-node-label--below {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.wf-node--tool:hover {
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
-}
-
-.wf-node--tool.selected {
-  border-color: #0891b2;
-  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.25);
-}
-
-/* Artefact nodes on canvas */
-.wf-node--artefact {
-  border-color: #44391a;
-}
-
-.wf-node--artefact:hover {
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
-}
-
-.wf-node--artefact.selected {
-  border-color: #d97706;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25);
-}
-
-.wf-node-icon--artefact {
-  color: #f59e0b;
-  font-size: 1.5rem;
-}
-
-/* Delete button on node */
+/* Delete button — positioned relative to .wf-shape */
 .wf-node-delete {
   position: absolute;
   top: -8px;
@@ -469,6 +492,8 @@ html, body {
 .wf-node:hover .wf-node-delete { display: flex; }
 
 /* ── Link handles (left / right) ─────────────────────────────── */
+/* Positioned relative to .wf-shape — so they land on the correct
+   edge of each geometry (circle equator, rect midpoint, etc.)    */
 .wf-handle {
   position: absolute;
   width: 14px;
@@ -478,10 +503,12 @@ html, body {
   border-radius: 50%;
   cursor: pointer;
   z-index: 5;
-  display: none;
+  visibility: hidden;
+  display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.15s, border-color 0.15s;
+  pointer-events: none;
 }
 
 .wf-handle:hover,
@@ -494,7 +521,10 @@ html, body {
 .wf-handle.right { right: -9px; top: 50%; transform: translateY(-50%); }
 
 .wf-node:hover .wf-handle,
-.wf-node .wf-handle.active { display: flex; }
+.wf-node .wf-handle.active {
+  visibility: visible;
+  pointer-events: auto;
+}
 
 /* ── SVG arrows ──────────────────────────────────────────────── */
 .wf-arrow {

@@ -9,6 +9,7 @@ const Canvas = ({
   selectedNodeId,
   onDrop,
   onDeleteNode,
+  onNodeDragStart,
   onNodeDragMove,
   onHandleDragStart,
   onNodeClick,
@@ -206,6 +207,7 @@ const Canvas = ({
           isSelected={selectedNodeId === node.id}
           connectionMode={connectionMode}
           onDelete={onDeleteNode}
+          onDragStart={onNodeDragStart}
           onDragMove={onNodeDragMove}
           onHandleDragStart={handleHandleDragStartInternal}
           onNodeClick={onNodeClick}

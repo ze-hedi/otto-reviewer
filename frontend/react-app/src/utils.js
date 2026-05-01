@@ -1,11 +1,21 @@
-// Get handle position relative to canvas
+// Get handle position relative to canvas.
+// Queries the actual handle element so the result is correct for all shapes
+// (circles, wide-rects, squares) regardless of their bounding-box geometry.
 export function getHandlePos(nodeElement, side, canvasRect) {
+  const handle = nodeElement.querySelector(`.wf-handle.${side}`);
+  if (handle) {
+    const hr = handle.getBoundingClientRect();
+    return {
+      x: hr.left + hr.width  / 2 - canvasRect.left,
+      y: hr.top  + hr.height / 2 - canvasRect.top,
+    };
+  }
+  // Fallback for safety
   const nodeRect = nodeElement.getBoundingClientRect();
-  const x = side === 'left'
-    ? nodeRect.left - canvasRect.left
-    : nodeRect.right - canvasRect.left;
-  const y = nodeRect.top + nodeRect.height / 2 - canvasRect.top;
-  return { x, y };
+  return {
+    x: side === 'left' ? nodeRect.left - canvasRect.left : nodeRect.right - canvasRect.left,
+    y: nodeRect.top + nodeRect.height / 2 - canvasRect.top,
+  };
 }
 
 // Create bezier path for connection arrow
