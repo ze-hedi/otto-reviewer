@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AgentForm from '../components/AgentForm';
 import './AgentsPage.css';
 
 function AgentsPage() {
@@ -9,11 +10,29 @@ function AgentsPage() {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
+
+  // Identity
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
+
+  // Model
   const [model, setModel] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState('medium');
+
+  // Session
+  const [sessionMode, setSessionMode] = useState('memory');
+  const [workingDir, setWorkingDir] = useState('');
+
+  // Prompt & Skills
+  const [systemPromptMode, setSystemPromptMode] = useState('write');
+  const [systemPromptText, setSystemPromptText] = useState('');
+  const [systemPromptFile, setSystemPromptFile] = useState(null);
   const [skills, setSkills] = useState([]);
-  const [systemPrompt, setSystemPrompt] = useState(null);
+  const [skillsDragOver, setSkillsDragOver] = useState(false);
+
+  // Advanced
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const resetForm = () => {
     setShowForm(false);
@@ -21,8 +40,24 @@ function AgentsPage() {
     setFormName('');
     setFormDescription('');
     setModel('');
+    setThinkingLevel('medium');
+    setSessionMode('memory');
+    setWorkingDir('');
+    setSystemPromptMode('write');
+    setSystemPromptText('');
+    setSystemPromptFile(null);
     setSkills([]);
-    setSystemPrompt(null);
+    setApiKey('');
+    setShowApiKey(false);
+  };
+
+  const getSystemPrompt = () => {
+    if (systemPromptMode === 'write') {
+      return systemPromptText.trim()
+        ? { name: 'system_prompt.md', content: systemPromptText.trim() }
+        : null;
+    }
+    return systemPromptFile || null;
   };
 
   const apiCall = async (url, options) => {
@@ -38,13 +73,25 @@ function AgentsPage() {
     return data;
   };
 
+  const buildPayload = () => ({
+    name: formName,
+    description: formDescription,
+    model,
+    thinkingLevel,
+    sessionMode,
+    ...(sessionMode === 'disk' || sessionMode === 'continue' ? { workingDir } : {}),
+    systemPrompt: getSystemPrompt(),
+    skills,
+    ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+  });
+
   const handleCreate = async () => {
     if (!formName.trim() || !formDescription.trim() || !model) return;
     try {
       const agent = await apiCall('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName, description: formDescription, model, systemPrompt: systemPrompt || null, skills }),
+        body: JSON.stringify(buildPayload()),
       });
       setAgents((prev) => [...prev, agent]);
       resetForm();
@@ -57,8 +104,15 @@ function AgentsPage() {
     setFormName(agent.name);
     setFormDescription(agent.description);
     setModel(agent.model || '');
+    setThinkingLevel(agent.thinkingLevel || 'medium');
+    setSessionMode(agent.sessionMode || 'memory');
+    setWorkingDir(agent.workingDir || '');
+    setSystemPromptMode('write');
+    setSystemPromptText('');
+    setSystemPromptFile(null);
     setSkills([]);
-    setSystemPrompt(null);
+    setApiKey('');
+    setShowApiKey(false);
     setEditingAgent(agent);
     setShowForm(true);
 
@@ -66,8 +120,13 @@ function AgentsPage() {
       const files = await apiCall(`/api/agents/${agent._id}/files`);
       const soul = files.find((f) => f.type === 'soul');
       const skillsFile = files.find((f) => f.type === 'skills');
-      if (soul) setSystemPrompt({ name: 'system_prompt.md', content: soul.content });
-      if (skillsFile) setSkills([{ name: 'skills.md', content: skillsFile.content, preloaded: true }]);
+      if (soul) {
+        setSystemPromptMode('upload');
+        setSystemPromptFile({ name: 'system_prompt.md', content: soul.content });
+      }
+      if (skillsFile) {
+        setSkills([{ name: 'skills.md', content: skillsFile.content, preloaded: true }]);
+      }
     } catch {}
   };
 
@@ -77,7 +136,7 @@ function AgentsPage() {
       const agent = await apiCall(`/api/agents/${editingAgent._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName, description: formDescription, model, systemPrompt: systemPrompt || null, skills }),
+        body: JSON.stringify(buildPayload()),
       });
       setAgents((prev) => prev.map((a) => (a._id === agent._id ? agent : a)));
       resetForm();
@@ -89,7 +148,6 @@ function AgentsPage() {
   const handleRun = async (agent) => {
     try {
       const files = await apiCall(`/api/agents/${agent._id}/files`);
-
       const res = await fetch('http://localhost:5000/runtime/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,15 +155,13 @@ function AgentsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Runtime server error');
-
       navigate(`/chat/${agent._id}`, { state: { agent } });
     } catch (err) {
       alert(`Failed to start agent: ${err.message}`);
     }
   };
 
-  const handleSkillsLoad = (e) => {
-    const files = Array.from(e.target.files);
+  const readFiles = (files) => {
     files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -113,7 +169,18 @@ function AgentsPage() {
       };
       reader.readAsText(file);
     });
+  };
+
+  const handleSkillsLoad = (e) => {
+    readFiles(Array.from(e.target.files));
     e.target.value = '';
+  };
+
+  const handleSkillsDrop = (e) => {
+    e.preventDefault();
+    setSkillsDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.name.endsWith('.md'));
+    readFiles(files);
   };
 
   const handleSystemPromptLoad = (e) => {
@@ -121,7 +188,7 @@ function AgentsPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setSystemPrompt({ name: file.name, content: ev.target.result });
+      setSystemPromptFile({ name: file.name, content: ev.target.result });
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -143,6 +210,8 @@ function AgentsPage() {
       });
   }, []);
 
+  const isFormValid = formName.trim() && formDescription.trim() && model;
+
   if (loading) return <div className="agents-container"><div className="agents-content"><p className="agents-subtitle">Loading agents...</p></div></div>;
   if (error) return <div className="agents-container"><div className="agents-content"><p className="agents-subtitle" style={{ color: '#f87171' }}>Error: {error}</p></div></div>;
 
@@ -160,113 +229,41 @@ function AgentsPage() {
         </div>
 
         {showForm ? (
-          <div className="create-agent-form">
-            <h2 className="create-agent-title">{editingAgent ? 'Edit Agent' : 'New Agent'}</h2>
-            <div className="form-group">
-              <label className="form-label" htmlFor="agent-name">Name</label>
-              <input
-                id="agent-name"
-                className="form-input"
-                type="text"
-                placeholder="Agent name"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="agent-description">Description</label>
-              <textarea
-                id="agent-description"
-                className="form-textarea"
-                placeholder="Describe what this agent does..."
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="agent-model">Model</label>
-              <select
-                id="agent-model"
-                className="form-input form-select"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              >
-                <option value="" disabled>Select a model...</option>
-                <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
-                <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
-                <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                <option value="gpt-5.1">GPT-5.1</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">System Prompt</label>
-              {!systemPrompt ? (
-                <label className="skills-upload-btn">
-                  + Load System Prompt
-                  <input
-                    type="file"
-                    accept=".md"
-                    style={{ display: 'none' }}
-                    onChange={handleSystemPromptLoad}
-                  />
-                </label>
-              ) : (
-                <div className="skills-list">
-                  <div className="skill-item">
-                    <div className="skill-item-header">
-                      <span className="skill-icon">⌗</span>
-                      <span className="skill-name">{systemPrompt.name}</span>
-                      <button className="skill-remove-btn" onClick={() => setSystemPrompt(null)}>✕</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Skills</label>
-              <label className="skills-upload-btn">
-                + Load Skills
-                <input
-                  type="file"
-                  accept=".md"
-                  multiple
-                  style={{ display: 'none' }}
-                  onChange={handleSkillsLoad}
-                />
-              </label>
-              {skills.length > 0 && (
-                <div className="skills-list">
-                  {skills.map((skill, i) => (
-                    <div key={i} className="skill-item">
-                      <div className="skill-item-header">
-                        <span className="skill-icon">⌗</span>
-                        <span className="skill-name">{skill.name}</span>
-                        <button
-                          className="skill-remove-btn"
-                          onClick={() => setSkills((prev) => prev.filter((_, idx) => idx !== i))}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="form-actions">
-              <button className="agent-action-btn view-btn" onClick={resetForm}>
-                Cancel
-              </button>
-              <button
-                className="agent-action-btn edit-btn create-agent-submit-btn"
-                onClick={editingAgent ? handleUpdate : handleCreate}
-              >
-                {editingAgent ? 'Update Agent' : 'Create Agent'}
-              </button>
-            </div>
-          </div>
+          <AgentForm
+            editingAgent={editingAgent}
+            formName={formName}
+            setFormName={setFormName}
+            formDescription={formDescription}
+            setFormDescription={setFormDescription}
+            model={model}
+            setModel={setModel}
+            thinkingLevel={thinkingLevel}
+            setThinkingLevel={setThinkingLevel}
+            sessionMode={sessionMode}
+            setSessionMode={setSessionMode}
+            workingDir={workingDir}
+            setWorkingDir={setWorkingDir}
+            systemPromptMode={systemPromptMode}
+            setSystemPromptMode={setSystemPromptMode}
+            systemPromptText={systemPromptText}
+            setSystemPromptText={setSystemPromptText}
+            systemPromptFile={systemPromptFile}
+            setSystemPromptFile={setSystemPromptFile}
+            skills={skills}
+            setSkills={setSkills}
+            skillsDragOver={skillsDragOver}
+            setSkillsDragOver={setSkillsDragOver}
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+            showApiKey={showApiKey}
+            setShowApiKey={setShowApiKey}
+            handleSystemPromptLoad={handleSystemPromptLoad}
+            handleSkillsLoad={handleSkillsLoad}
+            handleSkillsDrop={handleSkillsDrop}
+            onCancel={resetForm}
+            onSubmit={editingAgent ? handleUpdate : handleCreate}
+            isFormValid={isFormValid}
+          />
         ) : (
           <div className="agents-grid">
             {agents.map((agent) => (
