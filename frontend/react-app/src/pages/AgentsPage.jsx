@@ -33,6 +33,10 @@ function AgentsPage() {
   // Icon
   const [icon, setIcon] = useState('🤖');
 
+  // Tools
+  const [availableTools, setAvailableTools] = useState([]);
+  const [selectedTools, setSelectedTools] = useState([]);
+
   // Advanced
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -51,6 +55,7 @@ function AgentsPage() {
     setSystemPromptFile(null);
     setSkills([]);
     setIcon('🤖');
+    setSelectedTools([]);
     setApiKey('');
     setShowApiKey(false);
   };
@@ -87,6 +92,7 @@ function AgentsPage() {
     systemPrompt: getSystemPrompt(),
     skills,
     icon,
+    tools: selectedTools,
     ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
   });
 
@@ -117,6 +123,7 @@ function AgentsPage() {
     setSystemPromptFile(null);
     setSkills([]);
     setIcon(agent.icon || '🤖');
+    setSelectedTools(agent.tools ? agent.tools.map((t) => (typeof t === 'object' ? t._id : t)) : []);
     setApiKey('');
     setShowApiKey(false);
     setEditingAgent(agent);
@@ -216,6 +223,13 @@ function AgentsPage() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch('/api/tools')
+      .then((res) => res.json())
+      .then(setAvailableTools)
+      .catch(() => {});
+  }, []);
+
   const isFormValid = formName.trim() && formDescription.trim() && model;
 
   if (loading) return <div className="agents-container"><div className="agents-content"><p className="agents-subtitle">Loading agents...</p></div></div>;
@@ -243,6 +257,9 @@ function AgentsPage() {
             setFormDescription={setFormDescription}
             icon={icon}
             setIcon={setIcon}
+            availableTools={availableTools}
+            selectedTools={selectedTools}
+            setSelectedTools={setSelectedTools}
             model={model}
             setModel={setModel}
             thinkingLevel={thinkingLevel}

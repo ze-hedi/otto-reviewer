@@ -29,6 +29,10 @@ const agentSchema = new mongoose.Schema(
       type: String,
       default: '🤖',
     },
+    tools: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ToolSchema' }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

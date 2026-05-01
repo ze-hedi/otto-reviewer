@@ -422,6 +422,96 @@
   background: rgba(248, 113, 113, 0.1);
 }
 
+/* ── Tool picker ────────────────────────────────────────────────────────── */
+
+.tool-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.tool-picker-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tool-picker-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-picker-list::-webkit-scrollbar-thumb {
+  background: #2a3350;
+  border-radius: 4px;
+}
+
+.tool-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: #1e2637;
+  border: 1px solid #2a3350;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.tool-picker-row:hover:not(.active) {
+  border-color: rgba(124, 140, 248, 0.4);
+  background: rgba(124, 140, 248, 0.05);
+}
+
+.tool-picker-row.active {
+  border-color: #7c8cf8;
+  background: rgba(124, 140, 248, 0.1);
+}
+
+.tool-picker-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tool-picker-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.tool-picker-row.active .tool-picker-name {
+  color: #e2e8f0;
+}
+
+.tool-picker-id {
+  font-size: 0.7rem;
+  color: #3d4f6e;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.tool-picker-check {
+  font-size: 0.85rem;
+  color: #7c8cf8;
+  width: 1rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.tool-picker-empty {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.tool-picker-empty a {
+  color: #7c8cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── Advanced accordion ─────────────────────────────────────────────────── */
 
 .form-advanced {

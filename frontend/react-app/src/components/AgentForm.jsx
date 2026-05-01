@@ -51,6 +51,9 @@ function AgentForm({
   setFormDescription,
   icon,
   setIcon,
+  availableTools,
+  selectedTools,
+  setSelectedTools,
   model,
   setModel,
   thinkingLevel,
@@ -81,6 +84,12 @@ function AgentForm({
   isFormValid,
 }) {
   const skillsInputRef = useRef(null);
+
+  const toggleTool = (id) => {
+    setSelectedTools((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  };
 
   return (
     <div className="create-agent-form">
@@ -127,6 +136,40 @@ function AgentForm({
             onChange={(e) => setFormDescription(e.target.value)}
             rows={3}
           />
+        </div>
+      </div>
+
+      {/* ── Tools ────────────────────────────────────────── */}
+      <div className="form-section">
+        <div className="form-section-title">Tools</div>
+        <div className="form-group">
+          {availableTools.length === 0 ? (
+            <div className="tool-picker-empty">
+              No tools available. <a href="/tools">Create a tool</a>
+            </div>
+          ) : (
+            <div className="tool-picker-list">
+              {availableTools.map((tool) => {
+                const active = selectedTools.includes(tool._id);
+                return (
+                  <div
+                    key={tool._id}
+                    className={`tool-picker-row${active ? ' active' : ''}`}
+                    onClick={() => toggleTool(tool._id)}
+                    role="checkbox"
+                    aria-checked={active}
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && toggleTool(tool._id)}
+                  >
+                    <span className="tool-picker-icon">{tool.icon || '🔧'}</span>
+                    <span className="tool-picker-name">{tool.name}</span>
+                    <span className="tool-picker-id">{tool._id}</span>
+                    <span className="tool-picker-check">{active ? '✓' : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
