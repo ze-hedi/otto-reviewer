@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
-import { generateNodeId } from './utils';
+import { generateNodeId, NODE_DEFAULT_SIDES } from './utils';
 import './WorkflowBuilder.css';
 
 const WorkflowBuilder = () => {
@@ -146,12 +146,23 @@ const WorkflowBuilder = () => {
     if (!connectionMode) return;
 
     if (selectedNodeId && selectedNodeId !== nodeId) {
+      const fromNode = nodes.find(n => n.id === selectedNodeId);
+      const toNode   = nodes.find(n => n.id === nodeId);
+      const fromSide = (NODE_DEFAULT_SIDES[fromNode?.type] ?? NODE_DEFAULT_SIDES.agent).from;
+      const toSide   = (NODE_DEFAULT_SIDES[toNode?.type]   ?? NODE_DEFAULT_SIDES.agent).to;
+
+      // Agent ↔ tool connections are tool-link edges (dashed cyan)
+      const isToolLink =
+        (fromNode?.type === 'agent' && toNode?.type === 'tool') ||
+        (fromNode?.type === 'tool'  && toNode?.type === 'agent');
+
       // Create connection
       const newConn = {
         from: selectedNodeId,
-        fromSide: 'right',
+        fromSide,
         to: nodeId,
-        toSide: 'left',
+        toSide,
+        ...(isToolLink ? { linkType: 'tool-link' } : {}),
       };
 
       // Check if connection already exists
@@ -172,7 +183,7 @@ const WorkflowBuilder = () => {
     } else {
       setSelectedNodeId(nodeId);
     }
-  }, [connectionMode, selectedNodeId, connections, saveSnapshot]);
+  }, [connectionMode, selectedNodeId, connections, nodes, saveSnapshot]);
 
   // Handle drag start (for connections via handles)
   const handleHandleDragStart = useCallback((fromNodeId, fromSide, toNodeId, toSide, linkType) => {

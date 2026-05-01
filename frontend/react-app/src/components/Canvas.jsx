@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import WorkflowNode from './WorkflowNode';
-import { ensureSVGDefs, getHandlePosFromState, bezierPath } from '../utils';
+import { ensureSVGDefs, getHandlePosFromState, bezierPath, NODE_DEFAULT_SIDES } from '../utils';
 
 const Canvas = ({
   nodes,
@@ -191,7 +191,9 @@ const Canvas = ({
           const toNodeEl = target.closest('.wf-node');
           if (toNodeEl) {
             toNodeId = toNodeEl.dataset.id;
-            toSide = 'left';
+            // Use the canonical default entry side for this node type
+            const toNode = nodes.find(n => n.id === toNodeId);
+            toSide = (NODE_DEFAULT_SIDES[toNode?.type] ?? NODE_DEFAULT_SIDES.agent).to;
           }
         }
       }
@@ -260,6 +262,12 @@ const Canvas = ({
 
   return (
     <div className="wf-canvas" ref={canvasRef} onMouseDown={handleCanvasMouseDown}>
+      {nodes.length === 0 && (
+        <div className="wf-empty-hint">
+          <i className="bi bi-diagram-3"></i>
+          <span>Drag agents from the left to start</span>
+        </div>
+      )}
       <div className="wf-viewport" ref={viewportRef}>
         <div className="wf-grid"></div>
         <div
@@ -267,14 +275,7 @@ const Canvas = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDropInternal}
-        >
-          {nodes.length === 0 && (
-            <div className="wf-empty-hint">
-              <i className="bi bi-diagram-3"></i>
-              <span>Drag agents from the left to start</span>
-            </div>
-          )}
-        </div>
+        ></div>
 
         {nodes.map((node) => (
           <WorkflowNode

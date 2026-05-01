@@ -1,3 +1,12 @@
+// Default connection sides per node type.
+// Used wherever a side must be inferred from the node type alone (body-drop fallback,
+// click-to-connect mode).
+export const NODE_DEFAULT_SIDES = {
+  agent:    { from: 'right',  to: 'left' },
+  tool:     { from: 'bottom', to: 'top'  },
+  artefact: { from: 'right',  to: 'left' },
+};
+
 // Shape dimensions — kept in sync with shapes.config.js and CSS geometry.
 // Handle is 14×14px, offset -9px from the shape edge, so its center is ±2px from the edge.
 const NODE_DIMS = {

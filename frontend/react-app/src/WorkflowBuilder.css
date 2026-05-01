@@ -335,10 +335,13 @@ html, body {
   cursor: grabbing;
 }
 
-/* Viewport — panned via transform: translate(x, y) */
+/* Viewport — panned via transform: translate(x, y).
+   Large fixed size so the drop zone and grid always cover the full
+   visible canvas regardless of zoom level. */
 .wf-viewport {
   position: absolute;
-  inset: 0;
+  width: 10000px;
+  height: 10000px;
   transform-origin: 0 0;
 }
 
