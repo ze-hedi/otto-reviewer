@@ -28,6 +28,12 @@ function Home() {
           >
             Agents
           </button>
+          <button 
+            className="home-button tools-button"
+            onClick={() => navigate('/tools')}
+          >
+            Tools
+          </button>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { PiAgent, PiAgentConfig } from '../pi-agent.js';
 import { agentLogger } from './agent-logger.js';
+import { handleEvent } from '../pi-agent-utils.js';
 
 const app = express();
 const PORT = 5000;
@@ -123,7 +124,18 @@ app.post('/runtime/run', (req, res) => {
   };
 
   try {
-    const piAgent = new PiAgent(config);
+    // const piAgent = new PiAgent(config);
+
+    console.log("hello walls !!! ")
+    const piAgent = new PiAgent({
+    model: "anthropic/claude-sonnet-4-5",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    thinkingLevel: "medium",
+    sessionMode: "memory",
+  });
+  
+  console.log("create pi agent correctly ") ; 
+
 
     // Store in map and as globals
     activeAgents.set(agent._id, piAgent);
@@ -137,9 +149,12 @@ app.post('/runtime/run', (req, res) => {
     console.log(`[runtime]   sessionMode    : ${config.sessionMode}`);
     console.log(`[runtime]   thinkingLevel  : ${config.thinkingLevel}`);
     
-    if (config.workingDir) {
-      console.log(`[runtime]   workingDir     : ${config.workingDir}`);
-    }
+    // Prominently display working directory
+    const workDir = config.workingDir || process.cwd();
+    console.log(`[runtime]   ──────────────────────────────────────────────────────`);
+    console.log(`[runtime]   📁 Working Directory (files will be written here):`);
+    console.log(`[runtime]   ${workDir}`);
+    console.log(`[runtime]   ──────────────────────────────────────────────────────`);
     
     if (config.apiKey) {
       const masked = config.apiKey.length > 12 
@@ -217,66 +232,68 @@ app.post('/runtime/chat/:id', async (req, res) => {
 
   console.log(`[runtime] chat → agent ${id}: "${message.trim().slice(0, 80)}"`);
 
-  try {
-    await piAgent.chat(message.trim(), (event: any) => {
-      if (event.type === 'message_update') {
-        const sub = event.assistantMessageEvent;
-        if (sub?.type === 'text_delta') {
-          send({ type: 'delta', text: sub.delta });
-          // Log text deltas
-          agentLogger.log(id, 'message_update', {
-            textDelta: sub.delta,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } else if (event.type === 'tool_execution_start') {
-        send({ type: 'tool_start', name: event.toolName, args: event.args });
-        // Log tool execution start
-        agentLogger.log(id, 'tool_execution_start', {
-          toolName: event.toolName,
-          args: event.args,
-          timestamp: new Date().toISOString()
-        });
-      } else if (event.type === 'tool_execution_end') {
-        send({
-          type: 'tool_end',
-          name: event.toolName,
-          result: typeof event.result === 'string' ? event.result : JSON.stringify(event.result),
-          isError: event.isError,
-        });
-        // Log tool execution end
-        agentLogger.log(id, 'tool_execution_end', {
-          toolName: event.toolName,
-          result: typeof event.result === 'string' ? event.result : event.result,
-          isError: event.isError,
-          timestamp: new Date().toISOString()
-        });
-      } else if (event.type === 'message_end') {
-        // Log message end
-        agentLogger.log(id, 'message_end', {
-          timestamp: new Date().toISOString()
-        });
-      } else if (event.type === 'prompt_end') {
-        // Log prompt end
-        agentLogger.log(id, 'prompt_end', {
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-    console.log(`[runtime] chat ✓ agent ${id} turn complete`);
-    send({ type: 'done' });
-  } catch (err: any) {
-    console.error(`[runtime] chat ✗ agent ${id}: ${err.message}`);
-    // Log error
-    agentLogger.log(id, 'error', {
-      message: err.message ?? String(err),
-      stack: err.stack,
-      timestamp: new Date().toISOString()
-    });
-    send({ type: 'error', message: err.message ?? String(err) });
-  } finally {
-    res.end();
-  }
+  await piAgent.execute(message.trim(), handleEvent) ; 
+  // try {
+  //   await piAgent.chat(message.trim(), (event) => {
+
+  //     console.log(event) ; 
+  //     // Stream all events to console via the shared handler
+  //     handleEvent(event);
+
+  //     // Also forward relevant events over SSE to the client
+  //     if (event.type === 'message_update') {
+  //       const sub = event.assistantMessageEvent;
+  //       if (sub?.type === 'text_delta') {
+  //         send({ type: 'delta', text: sub.delta });
+  //         agentLogger.log(id, 'message_update', {
+  //           textDelta: sub.delta,
+  //           timestamp: new Date().toISOString()
+  //         });
+  //       }
+  //     } else if (event.type === 'tool_execution_start') {
+  //       send({ type: 'tool_start', name: event.toolName, args: event.args });
+  //       agentLogger.log(id, 'tool_execution_start', {
+  //         toolName: event.toolName,
+  //         args: event.args,
+  //         timestamp: new Date().toISOString()
+  //       });
+  //     } else if (event.type === 'tool_execution_end') {
+  //       send({
+  //         type: 'tool_end',
+  //         name: event.toolName,
+  //         result: typeof event.result === 'string' ? event.result : JSON.stringify(event.result),
+  //         isError: event.isError,
+  //       });
+  //       agentLogger.log(id, 'tool_execution_end', {
+  //         toolName: event.toolName,
+  //         result: typeof event.result === 'string' ? event.result : event.result,
+  //         isError: event.isError,
+  //         timestamp: new Date().toISOString()
+  //       });
+  //     } else if (event.type === 'message_end') {
+  //       agentLogger.log(id, 'message_end', {
+  //         timestamp: new Date().toISOString()
+  //       });
+  //     } else if (event.type === 'turn_end') {
+  //       agentLogger.log(id, 'prompt_end', {
+  //         timestamp: new Date().toISOString()
+  //       });
+  //     }
+  //   });
+  //   console.log(`[runtime] chat ✓ agent ${id} turn complete`);
+  //   send({ type: 'done' });
+  // } catch (err: any) {
+  //   console.error(`[runtime] chat ✗ agent ${id}: ${err.message}`);
+  //   // Log error
+  //   agentLogger.log(id, 'error', {
+  //     message: err.message ?? String(err),
+  //     stack: err.stack,
+  //     timestamp: new Date().toISOString()
+  //   });
+  //   send({ type: 'error', message: err.message ?? String(err) });
+  // } finally {
+  //   res.end();
+  // }
 });
 
 /**

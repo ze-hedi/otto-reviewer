@@ -3,6 +3,7 @@ const cors = require('cors');
 const { connect } = require('./connection');
 const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
+const ToolSchema = require('./models/ToolSchema');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -71,7 +72,7 @@ app.put('/api/agents/:id', async (req, res) => {
     const agent = await Agent.findByIdAndUpdate(
       req.params.id,
       { name, description, model, thinkingLevel, sessionMode, workingDir, apiKey },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
@@ -99,6 +100,85 @@ app.put('/api/agents/:id', async (req, res) => {
     }
 
     res.json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Tool Schema endpoints
+app.get('/api/tools', async (req, res) => {
+  try {
+    const tools = await ToolSchema.find().sort({ name: 1 });
+    res.json(tools);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/tools', async (req, res) => {
+  try {
+    const { name, description, schema } = req.body;
+    
+    if (!name || !description || !schema) {
+      return res.status(400).json({ error: 'name, description, and schema are required' });
+    }
+
+    const tool = await ToolSchema.create({ name, description, schema });
+    res.status(201).json(tool);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'A tool with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.get('/api/tools/:id', async (req, res) => {
+  try {
+    const tool = await ToolSchema.findById(req.params.id);
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    res.json(tool);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/tools/:id', async (req, res) => {
+  try {
+    const { name, description, schema } = req.body;
+    
+    const tool = await ToolSchema.findByIdAndUpdate(
+      req.params.id,
+      { name, description, schema },
+      { returnDocument: 'after', runValidators: true }
+    );
+    
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    res.json(tool);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'A tool with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.delete('/api/tools/:id', async (req, res) => {
+  try {
+    const tool = await ToolSchema.findByIdAndDelete(req.params.id);
+    
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    
+    res.json({ message: 'Tool deleted successfully', tool });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
