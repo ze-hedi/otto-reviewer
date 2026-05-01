@@ -328,6 +328,18 @@ html, body {
   position: relative;
   background: #0f1117;
   overflow: hidden;
+  cursor: grab;
+}
+
+.wf-canvas.is-panning {
+  cursor: grabbing;
+}
+
+/* Viewport — panned via transform: translate(x, y) */
+.wf-viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
 }
 
 /* Dot grid */

@@ -20,6 +20,8 @@ const Canvas = ({
 }) => {
   const canvasRef = useRef(null);
   const svgRef = useRef(null);
+  const viewportRef = useRef(null);
+  const panRef = useRef({ x: 0, y: 0 });
   const [isDragOver, setIsDragOver] = useState(false);
   const [, setLinkingState] = useState(null);
 
@@ -43,12 +45,13 @@ const Canvas = ({
   const handleDropInternal = (e) => {
     e.preventDefault();
     setIsDragOver(false);
-    
+
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
       const rect = canvasRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      // Subtract pan offset so the node lands at the correct logical position
+      const x = e.clientX - rect.left - panRef.current.x;
+      const y = e.clientY - rect.top - panRef.current.y;
 
       if (data.nodeType === 'artefact' && data.artefactType) {
         onDrop(data, x, y);
@@ -62,14 +65,46 @@ const Canvas = ({
     }
   };
 
-  // Handle canvas background click
-  const handleCanvasClick = (e) => {
-    if (e.target === canvasRef.current ||
-        e.target.classList.contains('wf-grid') ||
-        e.target.classList.contains('wf-drop-zone')) {
-      onCanvasClick();
-    }
-  };
+  // Canvas background mousedown — starts a pan or fires a click
+  const handleCanvasMouseDown = useCallback((e) => {
+    if (e.button !== 0) return;
+
+    const isBackground =
+      e.target === canvasRef.current ||
+      e.target === viewportRef.current ||
+      e.target.classList.contains('wf-grid') ||
+      e.target.classList.contains('wf-drop-zone');
+
+    if (!isBackground) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPanX = panRef.current.x;
+    const startPanY = panRef.current.y;
+    let hasMoved = false;
+
+    canvasRef.current.classList.add('is-panning');
+
+    const onMouseMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!hasMoved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      hasMoved = true;
+      panRef.current.x = startPanX + dx;
+      panRef.current.y = startPanY + dy;
+      viewportRef.current.style.transform = `translate(${panRef.current.x}px, ${panRef.current.y}px)`;
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      canvasRef.current.classList.remove('is-panning');
+      if (!hasMoved) onCanvasClick();
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [onCanvasClick]);
 
   // Handle linking
   const handleHandleDragStartInternal = useCallback((nodeId, side) => {
@@ -183,36 +218,38 @@ const Canvas = ({
   }, [nodes, connections, onConnectionClick]);
 
   return (
-    <div className="wf-canvas" ref={canvasRef} onClick={handleCanvasClick}>
-      <div className="wf-grid"></div>
-      <svg className="wf-svg" ref={svgRef}></svg>
-      <div
-        className={`wf-drop-zone ${isDragOver ? 'drag-over' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDropInternal}
-      >
-        {nodes.length === 0 && (
-          <div className="wf-empty-hint">
-            <i className="bi bi-diagram-3"></i>
-            <span>Drag agents from the left to start</span>
-          </div>
-        )}
+    <div className="wf-canvas" ref={canvasRef} onMouseDown={handleCanvasMouseDown}>
+      <div className="wf-viewport" ref={viewportRef}>
+        <div className="wf-grid"></div>
+        <svg className="wf-svg" ref={svgRef}></svg>
+        <div
+          className={`wf-drop-zone ${isDragOver ? 'drag-over' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDropInternal}
+        >
+          {nodes.length === 0 && (
+            <div className="wf-empty-hint">
+              <i className="bi bi-diagram-3"></i>
+              <span>Drag agents from the left to start</span>
+            </div>
+          )}
+        </div>
+
+        {nodes.map((node) => (
+          <WorkflowNode
+            key={node.id}
+            node={node}
+            isSelected={selectedNodeId === node.id}
+            connectionMode={connectionMode}
+            onDelete={onDeleteNode}
+            onDragStart={onNodeDragStart}
+            onDragMove={onNodeDragMove}
+            onHandleDragStart={handleHandleDragStartInternal}
+            onNodeClick={onNodeClick}
+          />
+        ))}
       </div>
-      
-      {nodes.map((node) => (
-        <WorkflowNode
-          key={node.id}
-          node={node}
-          isSelected={selectedNodeId === node.id}
-          connectionMode={connectionMode}
-          onDelete={onDeleteNode}
-          onDragStart={onNodeDragStart}
-          onDragMove={onNodeDragMove}
-          onHandleDragStart={handleHandleDragStartInternal}
-          onNodeClick={onNodeClick}
-        />
-      ))}
     </div>
   );
 };
