@@ -10,11 +10,14 @@ function ToolForm({
   setFormDescription,
   formSchema,
   setFormSchema,
+  formExecutionFunction,
+  setFormExecutionFunction,
   onCancel,
   onSubmit,
   isFormValid,
 }) {
   const [schemaError, setSchemaError] = useState('');
+  const [executionError, setExecutionError] = useState('');
 
   const validateJSON = (value) => {
     if (!value.trim()) {
@@ -45,6 +48,27 @@ function ToolForm({
     } catch (err) {
       setSchemaError('Cannot format invalid JSON');
     }
+  };
+
+  const validateExecutionFunction = () => {
+    if (!formExecutionFunction.trim()) {
+      setExecutionError('');
+      return;
+    }
+    try {
+      // Test if the function string is valid JavaScript
+      new Function('params', formExecutionFunction);
+      setExecutionError('');
+      alert('✅ Function is valid!');
+    } catch (err) {
+      setExecutionError(err.message);
+    }
+  };
+
+  const handleExecutionFunctionChange = (e) => {
+    const value = e.target.value;
+    setFormExecutionFunction(value);
+    setExecutionError('');
   };
 
   return (
@@ -103,6 +127,37 @@ function ToolForm({
           />
           {schemaError && <p className="form-error">{schemaError}</p>}
           <p className="form-hint">Enter a valid JSON schema defining the tool's parameters</p>
+        </div>
+      </FormSection>
+
+      {/* ── Execution Function ─────────────────────────────── */}
+      <FormSection title="Execution Function">
+        <div className="form-group">
+          <div className="execution-function-header">
+            <label className="form-label" htmlFor="tool-execution">JavaScript Function</label>
+            <button
+              type="button"
+              className="validate-btn"
+              onClick={validateExecutionFunction}
+              disabled={!formExecutionFunction.trim()}
+            >
+              Validate Function
+            </button>
+          </div>
+          <textarea
+            id="tool-execution"
+            className={`form-textarea execution-function-input${executionError ? ' error' : ''}`}
+            placeholder={`// Function receives 'params' object\n// Example:\nconst sum = params.a + params.b;\nreturn { result: sum };`}
+            value={formExecutionFunction}
+            onChange={handleExecutionFunctionChange}
+            rows={14}
+          />
+          {executionError && <p className="form-error">{executionError}</p>}
+          <p className="form-hint">
+            Write JavaScript code that will execute when this tool is called. 
+            The function receives a <code>params</code> object containing the tool parameters. 
+            Return a result object or string.
+          </p>
         </div>
       </FormSection>
 

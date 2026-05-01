@@ -7,9 +7,11 @@ import './load-env.js';
 
 import express from 'express';
 import cors from 'cors';
-import { PiAgent, PiAgentConfig } from '../pi-agent.js';
+import { Type } from '@typebox/typebox';
+import { PiAgent, PiAgentConfig, ToolInput } from '../pi-agent.js';
 import { agentLogger } from './agent-logger.js';
 import { handleEvent } from '../pi-agent-utils.js';
+import { ToolExecutor, ToolExecutionResult } from './tool-executor.js';
 
 const app = express();
 const PORT = 5000;
@@ -74,6 +76,121 @@ function resolveModel(model: string): string {
   return `anthropic/${model}`;
 }
 
+/**
+ * Load tools from the database API
+ */
+async function loadToolsFromDatabase(): Promise<any[]> {
+  try {
+    const response = await fetch('http://localhost:4000/api/tools');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tools: ${response.statusText}`);
+    }
+    const tools = await response.json();
+    console.log(`[runtime] Loaded ${tools.length} tool(s) from database`);
+    return tools;
+  } catch (err: any) {
+    console.error(`[runtime] Failed to load tools from database: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Convert JSON Schema to TypeBox schema
+ * Handles basic types - can be expanded for more complex schemas
+ */
+function convertJSONSchemaToTypeBox(jsonSchema: any): any {
+  if (!jsonSchema || typeof jsonSchema !== 'object') {
+    return Type.Any();
+  }
+
+  const schemaType = jsonSchema.type;
+
+  if (schemaType === 'object') {
+    const properties: any = {};
+    const required = jsonSchema.required || [];
+    
+    for (const [key, value] of Object.entries(jsonSchema.properties || {})) {
+      const convertedProp = convertJSONSchemaToTypeBox(value);
+      properties[key] = required.includes(key) 
+        ? convertedProp 
+        : Type.Optional(convertedProp);
+    }
+    
+    return Type.Object(properties);
+  }
+
+  if (schemaType === 'string') {
+    if (jsonSchema.enum) {
+      return Type.Union(jsonSchema.enum.map((v: string) => Type.Literal(v)));
+    }
+    return Type.String();
+  }
+
+  if (schemaType === 'number' || schemaType === 'integer') {
+    return Type.Number();
+  }
+
+  if (schemaType === 'boolean') {
+    return Type.Boolean();
+  }
+
+  if (schemaType === 'array') {
+    const items = jsonSchema.items 
+      ? convertJSONSchemaToTypeBox(jsonSchema.items) 
+      : Type.Any();
+    return Type.Array(items);
+  }
+
+  // Fallback for unknown types
+  return Type.Any();
+}
+
+/**
+ * Convert database tool schema to PiAgent ToolInput format
+ */
+function convertDatabaseToolToToolInput(dbTool: any): ToolInput {
+  return {
+    name: dbTool.name,
+    label: dbTool.name,
+    description: dbTool.description,
+    parameters: convertJSONSchemaToTypeBox(dbTool.schema),
+  };
+}
+
+/**
+ * Create an onToolExecute handler that routes to stored execution functions
+ */
+function createToolExecuteHandler(
+  toolFunctionMap: Map<string, string>
+): (toolCallId: string, toolName: string, params: any, signal?: AbortSignal) => Promise<ToolExecutionResult> {
+  return async (toolCallId, toolName, params, signal) => {
+    console.log(`[runtime] 🔧 Executing tool: ${toolName}`);
+    console.log(`[runtime]    params:`, JSON.stringify(params, null, 2));
+
+    const functionString = toolFunctionMap.get(toolName);
+
+    if (!functionString) {
+      throw new Error(`No execution function found for tool: ${toolName}`);
+    }
+
+    try {
+      const result = await ToolExecutor.executeFunction(functionString, params);
+      console.log(`[runtime] ✅ Tool ${toolName} completed successfully`);
+      return result;
+    } catch (err: any) {
+      console.error(`[runtime] ❌ Tool ${toolName} failed: ${err.message}`);
+      // Return error as tool result instead of throwing
+      return {
+        content: [{
+          type: 'text',
+          text: `Error executing tool ${toolName}: ${err.message}`,
+        }],
+        details: { error: true, message: err.message },
+      };
+    }
+  };
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 /**
@@ -84,7 +201,7 @@ function resolveModel(model: string): string {
  * Instantiates a new PiAgent for the given agent, registers it in
  * `activeAgents`, and sets it as the global `activeAgent`.
  */
-app.post('/runtime/run', (req, res) => {
+app.post('/runtime/run', async (req, res) => {
   const { agent, files = [] }: RunRequest = req.body;
 
   if (!agent?._id || !agent?.model) {
@@ -112,10 +229,32 @@ app.post('/runtime/run', (req, res) => {
     ? [{ name: 'agent-skills', content: skillsFile.content }]
     : [];
 
+  // Load tools from database
+  let dbTools: any[] = [];
+  let toolInputs: ToolInput[] = [];
+  let toolFunctionMap: Map<string, string> = new Map();
+  
+  try {
+    dbTools = await loadToolsFromDatabase();
+    toolInputs = dbTools.map(convertDatabaseToolToToolInput);
+    toolFunctionMap = new Map(dbTools.map(t => [t.name, t.executionFunction]));
+    
+    if (dbTools.length > 0) {
+      console.log(`[runtime] Registered ${dbTools.length} custom tool(s):`);
+      dbTools.forEach(t => console.log(`[runtime]   - ${t.name}: ${t.description}`));
+    }
+  } catch (err: any) {
+    console.warn(`[runtime] Warning: Failed to load tools: ${err.message}`);
+  }
+
   const config: PiAgentConfig = {
     model: resolveModel(agent.model),
     systemPromptSuffix: soulFile?.content?.trim() || undefined,
     skills,
+    // Add custom tools from database
+    tools: toolInputs.length > 0 ? toolInputs : undefined,
+    // Add tool execution handler
+    onToolExecute: toolInputs.length > 0 ? createToolExecuteHandler(toolFunctionMap) : undefined,
     // Use agent's configured values with database defaults as fallback
     sessionMode: agent.sessionMode || 'memory',
     thinkingLevel: agent.thinkingLevel || 'medium',
@@ -124,17 +263,9 @@ app.post('/runtime/run', (req, res) => {
   };
 
   try {
-    // const piAgent = new PiAgent(config);
-
-    console.log("hello walls !!! ")
-    const piAgent = new PiAgent({
-    model: "anthropic/claude-sonnet-4-5",
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    thinkingLevel: "medium",
-    sessionMode: "memory",
-  });
-  
-  console.log("create pi agent correctly ") ; 
+    const piAgent = new PiAgent(config);
+    
+    console.log("[runtime] PiAgent created successfully"); 
 
 
     // Store in map and as globals

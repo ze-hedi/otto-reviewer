@@ -14,6 +14,7 @@ function ToolsPage() {
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formSchema, setFormSchema] = useState('');
+  const [formExecutionFunction, setFormExecutionFunction] = useState('');
 
   const resetForm = () => {
     setShowForm(false);
@@ -21,6 +22,7 @@ function ToolsPage() {
     setFormName('');
     setFormDescription('');
     setFormSchema('');
+    setFormExecutionFunction('');
   };
 
   const validateJSON = (jsonString) => {
@@ -45,14 +47,28 @@ function ToolsPage() {
     return data;
   };
 
+  const validateExecutionFunction = (functionString) => {
+    try {
+      new Function('params', functionString);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCreate = async () => {
-    if (!formName.trim() || !formDescription.trim() || !formSchema.trim()) {
+    if (!formName.trim() || !formDescription.trim() || !formSchema.trim() || !formExecutionFunction.trim()) {
       alert('All fields are required');
       return;
     }
 
     if (!validateJSON(formSchema)) {
       alert('Schema must be valid JSON');
+      return;
+    }
+
+    if (!validateExecutionFunction(formExecutionFunction)) {
+      alert('Execution function has invalid JavaScript syntax');
       return;
     }
 
@@ -65,6 +81,7 @@ function ToolsPage() {
           name: formName,
           description: formDescription,
           schema,
+          executionFunction: formExecutionFunction,
         }),
       });
       setTools((prev) => [...prev, tool]);
@@ -78,18 +95,24 @@ function ToolsPage() {
     setFormName(tool.name);
     setFormDescription(tool.description);
     setFormSchema(JSON.stringify(tool.schema, null, 2));
+    setFormExecutionFunction(tool.executionFunction || '');
     setEditingTool(tool);
     setShowForm(true);
   };
 
   const handleUpdate = async () => {
-    if (!formName.trim() || !formDescription.trim() || !formSchema.trim()) {
+    if (!formName.trim() || !formDescription.trim() || !formSchema.trim() || !formExecutionFunction.trim()) {
       alert('All fields are required');
       return;
     }
 
     if (!validateJSON(formSchema)) {
       alert('Schema must be valid JSON');
+      return;
+    }
+
+    if (!validateExecutionFunction(formExecutionFunction)) {
+      alert('Execution function has invalid JavaScript syntax');
       return;
     }
 
@@ -102,6 +125,7 @@ function ToolsPage() {
           name: formName,
           description: formDescription,
           schema,
+          executionFunction: formExecutionFunction,
         }),
       });
       setTools((prev) => prev.map((t) => (t._id === tool._id ? tool : t)));
@@ -146,7 +170,9 @@ function ToolsPage() {
     formName.trim() &&
     formDescription.trim() &&
     formSchema.trim() &&
-    validateJSON(formSchema);
+    formExecutionFunction.trim() &&
+    validateJSON(formSchema) &&
+    validateExecutionFunction(formExecutionFunction);
 
   if (loading)
     return (
@@ -192,6 +218,8 @@ function ToolsPage() {
             setFormDescription={setFormDescription}
             formSchema={formSchema}
             setFormSchema={setFormSchema}
+            formExecutionFunction={formExecutionFunction}
+            setFormExecutionFunction={setFormExecutionFunction}
             onCancel={resetForm}
             onSubmit={editingTool ? handleUpdate : handleCreate}
             isFormValid={isFormValid}
