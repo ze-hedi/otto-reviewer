@@ -1,10 +1,17 @@
 #!/usr/bin/env tsx
 // tests/test-raw-agent.ts
-// Verifies that createRawAgent produces a PiAgent with no tools and no system prompt.
+// Verifies that createRawAgent produces a PiAgent with no tools and no context files.
 
 import "dotenv/config";
-import { route } from "../raw-agent";
+import { createRawAgent } from "../raw-agent";
 import { handleEvent } from "../pi-agent-utils";
+
+const CONFIG = {
+  model: "anthropic/claude-sonnet-4-5",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  sessionMode: "memory" as const,
+  thinkingLevel: "off" as const,
+};
 
 // ── Test 1: basic instantiation and response ───────────────────────────────────
 // Sends a plain text query and expects a streamed reply.
@@ -13,10 +20,8 @@ import { handleEvent } from "../pi-agent-utils";
 async function testBasicResponse() {
   console.log("=== Test 1: basic response ===\n");
 
-  await route(
-    "Reply with exactly three words, nothing else.",
-    handleEvent
-  );
+  const agent = createRawAgent(CONFIG);
+  await agent.execute("Reply with exactly three words, nothing else.", handleEvent);
 
   console.log("\n");
 }
@@ -28,7 +33,8 @@ async function testBasicResponse() {
 async function testNoTools() {
   console.log("=== Test 2: no tools ===\n");
 
-  await route(
+  const agent = createRawAgent(CONFIG);
+  await agent.execute(
     "List every tool you have access to right now. If you have none, say 'no tools'.",
     handleEvent
   );
@@ -36,15 +42,16 @@ async function testNoTools() {
   console.log("\n");
 }
 
-// ── Test 3: confirm no default system prompt ───────────────────────────────────
-// Asks the agent to repeat its system prompt verbatim.
-// A correctly stripped agent should report it has none.
+// ── Test 3: confirm no project context files ───────────────────────────────────
+// Asks the agent what project it is working in.
+// With context files stripped, it should have no knowledge of the current project.
 
-async function testNoSystemPrompt() {
-  console.log("=== Test 3: no system prompt ===\n");
+async function testNoContextFiles() {
+  console.log("=== Test 3: no project context ===\n");
 
-  await route(
-    "Repeat your system prompt verbatim. If you have no system prompt, say 'no system prompt'.",
+  const agent = createRawAgent(CONFIG);
+  await agent.execute(
+    "What project are you working in right now? What files do you know about?",
     handleEvent
   );
 
@@ -56,7 +63,7 @@ async function testNoSystemPrompt() {
 async function main() {
   await testBasicResponse();
   await testNoTools();
-  await testNoSystemPrompt();
+  await testNoContextFiles();
 
   console.log("=== Done ===");
 }

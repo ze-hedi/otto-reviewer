@@ -1,6 +1,5 @@
-// router.ts
-// Routes incoming queries to specialized agents.
-// Starts with a raw PiAgent — no tools, no default system prompt.
+// raw-agent.ts
+// Factory for a bare PiAgent — no tools, no project context files.
 
 import {
   createAgentSession,
@@ -16,14 +15,19 @@ import { PiAgent, type EventCallback, type PiAgentConfig } from "./pi-agent";
 //
 // Creates a PiAgent stripped of:
 //   - All tools (noTools: "all" suppresses builtin bash/read/edit/write)
-//   - Default Pi system prompt (systemPromptOverride returns undefined)
+//   - Skills, prompt templates, themes, and project context files
+//
+// The Pi SDK's base system prompt ("You are an expert coding assistant…") is
+// built internally by buildSystemPrompt() and has no public override path through
+// createAgentSession. It is left in place; callers can inject their own via
+// systemPromptSuffix if needed.
 //
 // Achieved by patching _createSession after construction so pi-agent.ts stays
 // untouched. The patch replicates the session-manager switch from the original
 // and delegates auth, model, and registry to PiAgent's already-initialised
 // private fields.
 
-function createRawAgent(
+export function createRawAgent(
   config: Omit<PiAgentConfig, "tools" | "skills" | "systemPromptSuffix">
 ): PiAgent {
   const agent = new PiAgent({ ...config, tools: [], skills: [] });
@@ -44,12 +48,10 @@ function createRawAgent(
     const resourceLoader = new DefaultResourceLoader({
       cwd: this.config.workingDir,
       agentDir: getAgentDir(),
-      noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      systemPromptOverride: () => undefined,
       appendSystemPromptOverride: () => [],
     });
     await resourceLoader.reload();
