@@ -60,15 +60,18 @@ const WorkflowNode = ({
   }, [node.id, onHandleDragStart]);
 
   const isArtefact = node.type === 'artefact';
-  const nodeIcon = isArtefact
-    ? (node.artefactType === 'if' ? '◇' : '☰')
-    : '🤖';
-  const nodeLabel = isArtefact ? node.label : node.agentName;
+  const isTool = node.type === 'tool';
+  const nodeIcon = isTool
+    ? (node.toolIcon || '🔧')
+    : isArtefact
+      ? (node.artefactType === 'if' ? '◇' : '☰')
+      : '🤖';
+  const nodeLabel = isTool ? node.toolName : isArtefact ? node.label : node.agentName;
 
   return (
     <div
       ref={nodeRef}
-      className={`wf-node ${isArtefact ? `wf-node--artefact wf-node--${node.artefactType}` : ''} ${isSelected ? 'selected' : ''}`}
+      className={`wf-node ${isArtefact ? `wf-node--artefact wf-node--${node.artefactType}` : ''} ${isTool ? 'wf-node--tool' : ''} ${isSelected ? 'selected' : ''}`}
       style={{ left: `${node.x}px`, top: `${node.y}px` }}
       data-id={node.id}
       data-agent-id={node.agentId}

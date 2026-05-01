@@ -13,6 +13,7 @@ function ToolsPage() {
   // Form fields
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formIcon, setFormIcon] = useState('🔧');
   const [formSchema, setFormSchema] = useState('');
   const [formExecutionFunction, setFormExecutionFunction] = useState('');
 
@@ -21,6 +22,7 @@ function ToolsPage() {
     setEditingTool(null);
     setFormName('');
     setFormDescription('');
+    setFormIcon('🔧');
     setFormSchema('');
     setFormExecutionFunction('');
   };
@@ -80,6 +82,7 @@ function ToolsPage() {
         body: JSON.stringify({
           name: formName,
           description: formDescription,
+          icon: formIcon || '🔧',
           schema,
           executionFunction: formExecutionFunction,
         }),
@@ -94,6 +97,7 @@ function ToolsPage() {
   const openEditForm = (tool) => {
     setFormName(tool.name);
     setFormDescription(tool.description);
+    setFormIcon(tool.icon || '🔧');
     setFormSchema(JSON.stringify(tool.schema, null, 2));
     setFormExecutionFunction(tool.executionFunction || '');
     setEditingTool(tool);
@@ -124,6 +128,7 @@ function ToolsPage() {
         body: JSON.stringify({
           name: formName,
           description: formDescription,
+          icon: formIcon || '🔧',
           schema,
           executionFunction: formExecutionFunction,
         }),
@@ -216,6 +221,8 @@ function ToolsPage() {
             setFormName={setFormName}
             formDescription={formDescription}
             setFormDescription={setFormDescription}
+            formIcon={formIcon}
+            setFormIcon={setFormIcon}
             formSchema={formSchema}
             setFormSchema={setFormSchema}
             formExecutionFunction={formExecutionFunction}

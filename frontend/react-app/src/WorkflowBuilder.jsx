@@ -16,6 +16,9 @@ const WorkflowBuilder = () => {
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [agentsError, setAgentsError] = useState(null);
+  const [tools, setTools] = useState([]);
+  const [loadingTools, setLoadingTools] = useState(true);
+  const [toolsError, setToolsError] = useState(null);
   const draggedType = useRef(null);
 
   // Fetch agents from database on mount
@@ -37,6 +40,25 @@ const WorkflowBuilder = () => {
       });
   }, []);
 
+  // Fetch tools from database on mount
+  useEffect(() => {
+    setLoadingTools(true);
+    fetch('http://localhost:4000/api/tools')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch tools');
+        return res.json();
+      })
+      .then(data => {
+        setTools(data);
+        setLoadingTools(false);
+      })
+      .catch(err => {
+        console.error('Error fetching tools:', err);
+        setToolsError(err.message);
+        setLoadingTools(false);
+      });
+  }, []);
+
   // Sidebar drag start
   const handleSidebarDragStart = useCallback((agent) => {
     draggedType.current = agent;
@@ -52,6 +74,16 @@ const WorkflowBuilder = () => {
         type: 'artefact',
         artefactType: data.artefactType,
         label: data.label,
+        x: x - 55,
+        y: y - 40,
+      };
+    } else if (data.nodeType === 'tool') {
+      newNode = {
+        id: generateNodeId(),
+        type: 'tool',
+        toolId: data.toolId,
+        toolName: data.toolName,
+        toolIcon: data.toolIcon,
         x: x - 55,
         y: y - 40,
       };
@@ -241,11 +273,14 @@ const WorkflowBuilder = () => {
         onClear={handleClear}
       />
       <div className="wf-body">
-        <Sidebar 
+        <Sidebar
           agents={agents}
           loadingAgents={loadingAgents}
           agentsError={agentsError}
-          onDragStart={handleSidebarDragStart} 
+          tools={tools}
+          loadingTools={loadingTools}
+          toolsError={toolsError}
+          onDragStart={handleSidebarDragStart}
         />
         <Canvas
           nodes={nodes}

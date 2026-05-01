@@ -5,7 +5,7 @@ const ARTEFACTS = [
   { type: 'plan', label: 'Plan', icon: '☰' },
 ];
 
-const Sidebar = ({ agents, loadingAgents, agentsError, onDragStart }) => {
+const Sidebar = ({ agents, loadingAgents, agentsError, tools, loadingTools, toolsError, onDragStart }) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
       nodeType: 'agent',
@@ -13,6 +13,16 @@ const Sidebar = ({ agents, loadingAgents, agentsError, onDragStart }) => {
       agentName: agent.name,
     }));
     onDragStart(agent);
+  };
+
+  const handleToolDragStart = (e, tool) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      nodeType: 'tool',
+      toolId: tool._id,
+      toolName: tool.name,
+      toolIcon: tool.icon || '🔧',
+    }));
+    onDragStart(tool);
   };
 
   const handleArtefactDragStart = (e, artefact) => {
@@ -65,6 +75,52 @@ const Sidebar = ({ agents, loadingAgents, agentsError, onDragStart }) => {
               >
                 <div className="wf-component-icon">🤖</div>
                 <span>{agent.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="wf-sidebar-header wf-sidebar-header--tools">
+          Tools
+          {!loadingTools && !toolsError && (
+            <span className="tool-count">{tools.length}</span>
+          )}
+        </div>
+
+        {loadingTools && (
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Loading tools...</p>
+          </div>
+        )}
+
+        {toolsError && (
+          <div className="error-state">
+            <p>Failed to load tools</p>
+            <small>{toolsError}</small>
+          </div>
+        )}
+
+        {!loadingTools && !toolsError && tools.length === 0 && (
+          <div className="empty-state">
+            <p>No tools available</p>
+            <a href="/tools">Create a tool</a>
+          </div>
+        )}
+
+        {!loadingTools && !toolsError && tools.length > 0 && (
+          <div className="wf-category">
+            {tools.map(tool => (
+              <div
+                key={tool._id}
+                className="wf-component wf-component--tool"
+                draggable="true"
+                onDragStart={(e) => handleToolDragStart(e, tool)}
+              >
+                <div className="wf-component-icon wf-component-icon--tool">
+                  {tool.icon || '🔧'}
+                </div>
+                <span>{tool.name}</span>
               </div>
             ))}
           </div>

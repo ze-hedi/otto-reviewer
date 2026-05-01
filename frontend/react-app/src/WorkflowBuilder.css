@@ -199,6 +199,33 @@ html, body {
   flex-shrink: 0;
 }
 
+/* Tools section header inside palette */
+.wf-sidebar-header--tools {
+  margin-top: 0.5rem;
+  border-top: 1px solid #1e2637;
+  border-bottom: 1px solid #1e2637;
+}
+
+.tool-count {
+  background: #06b6d4;
+  color: #0f1117;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+/* Tool draggable pill */
+.wf-component--tool:hover {
+  border-color: #06b6d4;
+}
+
+.wf-component-icon--tool {
+  background: #0c2a30;
+  color: #06b6d4;
+  font-size: 1rem;
+}
+
 /* Artefacts section header inside palette */
 .wf-sidebar-header--artefacts {
   margin-top: 0.5rem;
@@ -380,6 +407,21 @@ html, body {
   font-weight: 600;
   color: #cbd5e1;
   white-space: nowrap;
+}
+
+/* Tool nodes on canvas */
+.wf-node--tool {
+  border-color: #0c3040;
+}
+
+.wf-node--tool:hover {
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12);
+}
+
+.wf-node--tool.selected {
+  border-color: #0891b2;
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.25);
 }
 
 /* Artefact nodes on canvas */

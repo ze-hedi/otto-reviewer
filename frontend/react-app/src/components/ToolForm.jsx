@@ -8,6 +8,8 @@ function ToolForm({
   setFormName,
   formDescription,
   setFormDescription,
+  formIcon,
+  setFormIcon,
   formSchema,
   setFormSchema,
   formExecutionFunction,
@@ -88,6 +90,21 @@ function ToolForm({
             onChange={(e) => setFormName(e.target.value)}
           />
           <p className="form-hint">Unique identifier for this tool</p>
+        </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="tool-icon">Icon</label>
+          <div className="tool-icon-row">
+            <span className="tool-icon-preview">{formIcon || '🔧'}</span>
+            <input
+              id="tool-icon"
+              className="form-input tool-icon-input"
+              type="text"
+              placeholder="🔧"
+              value={formIcon}
+              onChange={(e) => setFormIcon(e.target.value)}
+            />
+          </div>
+          <p className="form-hint">Emoji shown in the workflow sidebar</p>
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="tool-description">Description</label>

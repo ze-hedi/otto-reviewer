@@ -51,6 +51,8 @@ const Canvas = ({
 
       if (data.nodeType === 'artefact' && data.artefactType) {
         onDrop(data, x, y);
+      } else if (data.nodeType === 'tool' && data.toolId) {
+        onDrop(data, x, y);
       } else if (data.agentId && data.agentName) {
         onDrop(data, x, y);
       }

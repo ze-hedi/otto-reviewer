@@ -117,13 +117,13 @@ app.get('/api/tools', async (req, res) => {
 
 app.post('/api/tools', async (req, res) => {
   try {
-    const { name, description, schema } = req.body;
-    
-    if (!name || !description || !schema) {
-      return res.status(400).json({ error: 'name, description, and schema are required' });
+    const { name, description, icon, schema, executionFunction } = req.body;
+
+    if (!name || !description || !schema || !executionFunction) {
+      return res.status(400).json({ error: 'name, description, schema, and executionFunction are required' });
     }
 
-    const tool = await ToolSchema.create({ name, description, schema });
+    const tool = await ToolSchema.create({ name, description, icon, schema, executionFunction });
     res.status(201).json(tool);
   } catch (err) {
     if (err.code === 11000) {
@@ -148,11 +148,11 @@ app.get('/api/tools/:id', async (req, res) => {
 
 app.put('/api/tools/:id', async (req, res) => {
   try {
-    const { name, description, schema } = req.body;
-    
+    const { name, description, icon, schema, executionFunction } = req.body;
+
     const tool = await ToolSchema.findByIdAndUpdate(
       req.params.id,
-      { name, description, schema },
+      { name, description, icon, schema, executionFunction },
       { returnDocument: 'after', runValidators: true }
     );
     
