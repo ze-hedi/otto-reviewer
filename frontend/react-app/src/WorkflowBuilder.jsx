@@ -106,6 +106,7 @@ const WorkflowBuilder = () => {
         type: 'agent',
         agentId: data.agentId,
         agentName: data.agentName,
+        agentIcon: data.agentIcon || '🤖',
         x: x - 55,
         y: y - 40,
       };

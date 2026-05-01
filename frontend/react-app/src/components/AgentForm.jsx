@@ -27,6 +27,14 @@ const MODELS = [
   },
 ];
 
+const AGENT_ICONS = [
+  { value: '🤖', label: 'Robot' },
+  { value: '🧠', label: 'Brain' },
+  { value: '🔍', label: 'Researcher' },
+  { value: '⚡', label: 'Fast' },
+  { value: '🛠️', label: 'Builder' },
+];
+
 const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh'];
 
 const SESSION_MODES = [
@@ -41,6 +49,8 @@ function AgentForm({
   setFormName,
   formDescription,
   setFormDescription,
+  icon,
+  setIcon,
   model,
   setModel,
   thinkingLevel,
@@ -89,6 +99,23 @@ function AgentForm({
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
           />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Icon</label>
+          <div className="agent-icon-picker">
+            {AGENT_ICONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`agent-icon-btn${icon === opt.value ? ' active' : ''}`}
+                onClick={() => setIcon(opt.value)}
+                title={opt.label}
+              >
+                <span className="agent-icon-emoji">{opt.value}</span>
+                <span className="agent-icon-label">{opt.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="agent-description">Description</label>

@@ -157,6 +157,53 @@
   color: #7c8cf8;
 }
 
+/* ── Agent icon picker ──────────────────────────────────────────────────── */
+
+.agent-icon-picker {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.agent-icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.75rem;
+  background: #1e2637;
+  border: 1px solid #2a3350;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  user-select: none;
+}
+
+.agent-icon-btn:hover:not(.active) {
+  border-color: rgba(124, 140, 248, 0.4);
+  background: rgba(124, 140, 248, 0.05);
+}
+
+.agent-icon-btn.active {
+  border-color: #7c8cf8;
+  background: rgba(124, 140, 248, 0.1);
+  box-shadow: 0 0 0 2px rgba(124, 140, 248, 0.15);
+}
+
+.agent-icon-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.agent-icon-label {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.agent-icon-btn.active .agent-icon-label {
+  color: #7c8cf8;
+}
+
 /* ── Session mode cards ─────────────────────────────────────────────────── */
 
 .session-mode-cards {

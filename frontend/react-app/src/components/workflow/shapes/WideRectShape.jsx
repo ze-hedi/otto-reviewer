@@ -8,7 +8,7 @@ const WideRectShape = ({ node, onDelete, onHandleMouseDown }) => (
     >
       ×
     </button>
-    <div className="wf-node-icon">🤖</div>
+    <div className="wf-node-icon">{node.agentIcon || '🤖'}</div>
     <div className="wf-node-label">{node.agentName}</div>
     <div className="wf-handle left"  data-side="left"  onMouseDown={(e) => onHandleMouseDown(e, 'left')}  />
     <div className="wf-handle right" data-side="right" onMouseDown={(e) => onHandleMouseDown(e, 'right')} />

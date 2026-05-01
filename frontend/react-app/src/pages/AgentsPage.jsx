@@ -30,6 +30,9 @@ function AgentsPage() {
   const [skills, setSkills] = useState([]);
   const [skillsDragOver, setSkillsDragOver] = useState(false);
 
+  // Icon
+  const [icon, setIcon] = useState('🤖');
+
   // Advanced
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -47,6 +50,7 @@ function AgentsPage() {
     setSystemPromptText('');
     setSystemPromptFile(null);
     setSkills([]);
+    setIcon('🤖');
     setApiKey('');
     setShowApiKey(false);
   };
@@ -82,6 +86,7 @@ function AgentsPage() {
     ...(sessionMode === 'disk' || sessionMode === 'continue' ? { workingDir } : {}),
     systemPrompt: getSystemPrompt(),
     skills,
+    icon,
     ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
   });
 
@@ -111,6 +116,7 @@ function AgentsPage() {
     setSystemPromptText('');
     setSystemPromptFile(null);
     setSkills([]);
+    setIcon(agent.icon || '🤖');
     setApiKey('');
     setShowApiKey(false);
     setEditingAgent(agent);
@@ -235,6 +241,8 @@ function AgentsPage() {
             setFormName={setFormName}
             formDescription={formDescription}
             setFormDescription={setFormDescription}
+            icon={icon}
+            setIcon={setIcon}
             model={model}
             setModel={setModel}
             thinkingLevel={thinkingLevel}

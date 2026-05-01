@@ -11,6 +11,7 @@ const Sidebar = ({ agents, loadingAgents, agentsError, tools, loadingTools, tool
       nodeType: 'agent',
       agentId: agent._id,
       agentName: agent.name,
+      agentIcon: agent.icon || '🤖',
     }));
     onDragStart(agent);
   };
@@ -73,7 +74,7 @@ const Sidebar = ({ agents, loadingAgents, agentsError, tools, loadingTools, tool
                 draggable="true"
                 onDragStart={(e) => handleAgentDragStart(e, agent)}
               >
-                <div className="wf-component-icon">🤖</div>
+                <div className="wf-component-icon">{agent.icon || '🤖'}</div>
                 <span>{agent.name}</span>
               </div>
             ))}
