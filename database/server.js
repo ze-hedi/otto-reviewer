@@ -4,6 +4,7 @@ const { connect } = require('./connection');
 const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
 const ToolSchema = require('./models/ToolSchema');
+const ClaudeCodeAgent = require('./models/ClaudeCodeAgent');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -179,6 +180,72 @@ app.delete('/api/tools/:id', async (req, res) => {
     }
     
     res.json({ message: 'Tool deleted successfully', tool });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Claude Code Agent endpoints ───────────────────────────────────────────────
+
+app.get('/api/claude-code-agents', async (req, res) => {
+  try {
+    const agents = await ClaudeCodeAgent.find().sort({ createdAt: 1 });
+    res.json(agents);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/claude-code-agents', async (req, res) => {
+  try {
+    const { name, description, icon, systemPrompt, model, maxTurns, permissionMode, allowedTools, mcpServers } = req.body;
+    const agent = await ClaudeCodeAgent.create({
+      name, description, icon, systemPrompt, model, maxTurns, permissionMode, allowedTools, mcpServers,
+    });
+    res.status(201).json(agent);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'An agent with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.get('/api/claude-code-agents/:id', async (req, res) => {
+  try {
+    const agent = await ClaudeCodeAgent.findById(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/claude-code-agents/:id', async (req, res) => {
+  try {
+    const { name, description, icon, systemPrompt, model, maxTurns, permissionMode, allowedTools, mcpServers } = req.body;
+    const agent = await ClaudeCodeAgent.findByIdAndUpdate(
+      req.params.id,
+      { name, description, icon, systemPrompt, model, maxTurns, permissionMode, allowedTools, mcpServers },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json(agent);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'An agent with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.delete('/api/claude-code-agents/:id', async (req, res) => {
+  try {
+    const agent = await ClaudeCodeAgent.findByIdAndDelete(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json({ message: 'Agent deleted successfully', agent });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
