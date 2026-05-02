@@ -5,13 +5,28 @@ const ARTEFACTS = [
   { type: 'plan', label: 'Plan', icon: '☰' },
 ];
 
-const Sidebar = ({ agents, loadingAgents, agentsError, tools, loadingTools, toolsError, onDragStart, onAgentClick }) => {
+const Sidebar = ({
+  agents, loadingAgents, agentsError,
+  claudeCodeAgents, loadingCCAgents, ccAgentsError,
+  tools, loadingTools, toolsError,
+  onDragStart, onAgentClick, onCCAgentClick,
+}) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
       nodeType: 'agent',
       agentId: agent._id,
       agentName: agent.name,
       agentIcon: agent.icon || '🤖',
+    }));
+    onDragStart(agent);
+  };
+
+  const handleCCAgentDragStart = (e, agent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      nodeType: 'claude-code-agent',
+      agentId: agent._id,
+      agentName: agent.name,
+      agentIcon: agent.icon || '🖥️',
     }));
     onDragStart(agent);
   };
@@ -82,6 +97,55 @@ const Sidebar = ({ agents, loadingAgents, agentsError, tools, loadingTools, tool
           </div>
         )}
 
+        {/* ── Claude Code Agents ───────────────────────────── */}
+        <div className="wf-sidebar-header wf-sidebar-header--cc-agents">
+          Claude Code
+          {!loadingCCAgents && !ccAgentsError && (
+            <span className="cc-agent-count">{claudeCodeAgents.length}</span>
+          )}
+        </div>
+
+        {loadingCCAgents && (
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        )}
+
+        {ccAgentsError && (
+          <div className="error-state">
+            <p>Failed to load agents</p>
+            <small>{ccAgentsError}</small>
+          </div>
+        )}
+
+        {!loadingCCAgents && !ccAgentsError && claudeCodeAgents.length === 0 && (
+          <div className="empty-state">
+            <p>No Claude Code agents</p>
+            <a href="/agents">Create one</a>
+          </div>
+        )}
+
+        {!loadingCCAgents && !ccAgentsError && claudeCodeAgents.length > 0 && (
+          <div className="wf-category">
+            {claudeCodeAgents.map(agent => (
+              <div
+                key={agent._id}
+                className="wf-component wf-component--cc-agent"
+                draggable="true"
+                onDragStart={(e) => handleCCAgentDragStart(e, agent)}
+                onClick={() => onCCAgentClick?.(agent._id)}
+              >
+                <div className="wf-component-icon wf-component-icon--cc-agent">
+                  {agent.icon || '🖥️'}
+                </div>
+                <span>{agent.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tools ─────────────────────────────────────────── */}
         <div className="wf-sidebar-header wf-sidebar-header--tools">
           Tools
           {!loadingTools && !toolsError && (
