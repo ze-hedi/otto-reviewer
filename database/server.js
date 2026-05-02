@@ -5,6 +5,7 @@ const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
 const ToolSchema = require('./models/ToolSchema');
 const ClaudeCodeAgent = require('./models/ClaudeCodeAgent');
+const Interface = require('./models/Interface');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -246,6 +247,75 @@ app.delete('/api/claude-code-agents/:id', async (req, res) => {
     const agent = await ClaudeCodeAgent.findByIdAndDelete(req.params.id);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     res.json({ message: 'Agent deleted successfully', agent });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Interface endpoints ───────────────────────────────────────────────────────
+
+app.get('/api/interfaces', async (req, res) => {
+  try {
+    const interfaces = await Interface.find().sort({ name: 1 });
+    res.json(interfaces);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/interfaces', async (req, res) => {
+  try {
+    const { name, icon, executionFunction } = req.body;
+
+    if (!name || !icon || !executionFunction) {
+      return res.status(400).json({ error: 'name, icon, and executionFunction are required' });
+    }
+
+    const iface = await Interface.create({ name, icon, executionFunction });
+    res.status(201).json(iface);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'An interface with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.get('/api/interfaces/:id', async (req, res) => {
+  try {
+    const iface = await Interface.findById(req.params.id);
+    if (!iface) return res.status(404).json({ error: 'Interface not found' });
+    res.json(iface);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/interfaces/:id', async (req, res) => {
+  try {
+    const { name, icon, executionFunction } = req.body;
+    const iface = await Interface.findByIdAndUpdate(
+      req.params.id,
+      { name, icon, executionFunction },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!iface) return res.status(404).json({ error: 'Interface not found' });
+    res.json(iface);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'An interface with this name already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.delete('/api/interfaces/:id', async (req, res) => {
+  try {
+    const iface = await Interface.findByIdAndDelete(req.params.id);
+    if (!iface) return res.status(404).json({ error: 'Interface not found' });
+    res.json({ message: 'Interface deleted successfully', interface: iface });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
