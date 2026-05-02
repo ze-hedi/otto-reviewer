@@ -264,8 +264,10 @@ const WorkflowBuilder = () => {
       const node = nodes.find((n) => n.id === nodeId);
       if (node?.type === 'agent') {
         if (node.agentType === 'claude-code') {
+          setSelectedAgentId(null);
           setSelectedCCAgentId(node.agentId);
         } else {
+          setSelectedCCAgentId(null);
           setSelectedAgentId(node.agentId);
         }
       }
@@ -455,8 +457,14 @@ const WorkflowBuilder = () => {
           loadingTools={loadingTools}
           toolsError={toolsError}
           onDragStart={handleSidebarDragStart}
-          onAgentClick={(agentId) => setSelectedAgentId(agentId)}
-          onCCAgentClick={(agentId) => setSelectedCCAgentId(agentId)}
+          onAgentClick={(agentId) => {
+            setSelectedCCAgentId(null);
+            setSelectedAgentId(agentId);
+          }}
+          onCCAgentClick={(agentId) => {
+            setSelectedAgentId(null);
+            setSelectedCCAgentId(agentId);
+          }}
         />
         <Canvas
           nodes={nodes}
