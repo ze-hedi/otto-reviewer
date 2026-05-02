@@ -23,10 +23,15 @@ const WorkflowBuilder = () => {
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const draggedType = useRef(null);
   const snapshotRef = useRef({ nodes, connections });
+  const agentsRef   = useRef(agents);
 
   useEffect(() => {
     snapshotRef.current = { nodes, connections };
   }, [nodes, connections]);
+
+  useEffect(() => {
+    agentsRef.current = agents;
+  }, [agents]);
 
   const saveSnapshot = useCallback(() => {
     setHistory(prev => [...prev, { nodes: snapshotRef.current.nodes, connections: snapshotRef.current.connections }]);
@@ -89,6 +94,29 @@ const WorkflowBuilder = () => {
           : n
       )
     );
+  }, []);
+
+  // Persist a tool-link add/remove to the agent's DB record
+  const syncToolLink = useCallback((agentNode, toolNode, action) => {
+    const agent = agentsRef.current.find((a) => a._id === agentNode.agentId);
+    if (!agent || !toolNode.toolId) return;
+
+    const currentTools = (agent.tools || []).map((t) => (typeof t === 'object' ? t._id : t));
+    const newTools =
+      action === 'add'
+        ? [...new Set([...currentTools, toolNode.toolId])]
+        : currentTools.filter((id) => id !== toolNode.toolId);
+
+    fetch(`http://localhost:4000/api/agents/${agent._id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...agent, tools: newTools }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((updated) => {
+        setAgents((prev) => prev.map((a) => (a._id === updated._id ? updated : a)));
+      })
+      .catch(() => console.error(`Failed to ${action} tool link in DB`));
   }, []);
 
   // Sidebar drag start
@@ -159,10 +187,23 @@ const WorkflowBuilder = () => {
   // Delete node
   const handleDeleteNode = useCallback((nodeId) => {
     saveSnapshot();
+    // Sync any tool-links being implicitly removed before wiping them
+    const { nodes: currentNodes, connections: currentConns } = snapshotRef.current;
+    currentConns.forEach((conn) => {
+      if ((conn.from === nodeId || conn.to === nodeId) && conn.linkType === 'tool-link') {
+        const fromNode = currentNodes.find((n) => n.id === conn.from);
+        const toNode   = currentNodes.find((n) => n.id === conn.to);
+        if (fromNode && toNode) {
+          const agentNode = fromNode.type === 'agent' ? fromNode : toNode;
+          const toolNode  = fromNode.type === 'tool'  ? fromNode : toNode;
+          syncToolLink(agentNode, toolNode, 'remove');
+        }
+      }
+    });
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setConnections((prev) => prev.filter((c) => c.from !== nodeId && c.to !== nodeId));
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
-  }, [saveSnapshot, selectedNodeId]);
+  }, [saveSnapshot, selectedNodeId, syncToolLink]);
 
   // Node click — connection mode: wire nodes; normal mode: open detail panel
   const handleNodeClick = useCallback((nodeId) => {
@@ -204,13 +245,18 @@ const WorkflowBuilder = () => {
       if (!exists) {
         saveSnapshot();
         setConnections((prev) => [...prev, newConn]);
+        if (isToolLink) {
+          const agentNode = fromNode?.type === 'agent' ? fromNode : toNode;
+          const toolNode  = fromNode?.type === 'tool'  ? fromNode : toNode;
+          syncToolLink(agentNode, toolNode, 'add');
+        }
       }
 
       setSelectedNodeId(null);
     } else {
       setSelectedNodeId(nodeId);
     }
-  }, [connectionMode, selectedNodeId, connections, nodes, saveSnapshot]);
+  }, [connectionMode, selectedNodeId, connections, nodes, saveSnapshot, syncToolLink]);
 
   // Handle drag start (for connections via handles)
   const handleHandleDragStart = useCallback((fromNodeId, fromSide, toNodeId, toSide, linkType) => {
@@ -235,8 +281,17 @@ const WorkflowBuilder = () => {
     if (!exists) {
       saveSnapshot();
       setConnections((prev) => [...prev, newConn]);
+      if (linkType === 'tool-link') {
+        const fromNode = snapshotRef.current.nodes.find((n) => n.id === fromNodeId);
+        const toNode   = snapshotRef.current.nodes.find((n) => n.id === toNodeId);
+        if (fromNode && toNode) {
+          const agentNode = fromNode.type === 'agent' ? fromNode : toNode;
+          const toolNode  = fromNode.type === 'tool'  ? fromNode : toNode;
+          syncToolLink(agentNode, toolNode, 'add');
+        }
+      }
     }
-  }, [connections, saveSnapshot]);
+  }, [connections, saveSnapshot, syncToolLink]);
 
   // Connection click
   const handleConnectionClick = useCallback((conn, midpoint) => {
@@ -260,7 +315,17 @@ const WorkflowBuilder = () => {
     );
     setSelectedConnection(null);
     setDeleteConnBtnPos(null);
-  }, [saveSnapshot]);
+
+    if (conn.linkType === 'tool-link') {
+      const fromNode = snapshotRef.current.nodes.find((n) => n.id === conn.from);
+      const toNode   = snapshotRef.current.nodes.find((n) => n.id === conn.to);
+      if (fromNode && toNode) {
+        const agentNode = fromNode.type === 'agent' ? fromNode : toNode;
+        const toolNode  = fromNode.type === 'tool'  ? fromNode : toNode;
+        syncToolLink(agentNode, toolNode, 'remove');
+      }
+    }
+  }, [saveSnapshot, syncToolLink]);
 
   // Canvas click (clear selection)
   const handleCanvasClick = useCallback(() => {
