@@ -5,6 +5,8 @@ const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
 const ToolSchema = require('./models/ToolSchema');
 const ClaudeCodeAgent = require('./models/ClaudeCodeAgent');
+const ClaudeCodeSession = require('./models/ClaudeCodeSession');
+const ClaudeCodeEvent = require('./models/ClaudeCodeEvent');
 const Interface = require('./models/Interface');
 
 const app = express();
@@ -247,6 +249,69 @@ app.delete('/api/claude-code-agents/:id', async (req, res) => {
     const agent = await ClaudeCodeAgent.findByIdAndDelete(req.params.id);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     res.json({ message: 'Agent deleted successfully', agent });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Claude Code Session endpoints ─────────────────────────────────────────────
+
+app.get('/api/claude-code-sessions', async (req, res) => {
+  try {
+    const filter = req.query.agentId ? { agentId: req.query.agentId } : {};
+    const sessions = await ClaudeCodeSession.find(filter).sort({ createdAt: -1 });
+    res.json(sessions);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/claude-code-sessions', async (req, res) => {
+  try {
+    const { sessionId, agentId, model, subtype, costUsd, durationMs, numTurns } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+    const session = await ClaudeCodeSession.create({
+      _id: sessionId, agentId, model, subtype, costUsd, durationMs, numTurns,
+    });
+    res.status(201).json(session);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'A session with this ID already exists' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+app.get('/api/claude-code-sessions/:sessionId', async (req, res) => {
+  try {
+    const session = await ClaudeCodeSession.findById(req.params.sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Claude Code Event endpoints ────────────────────────────────────────────────
+
+app.post('/api/claude-code-events', async (req, res) => {
+  try {
+    const events = Array.isArray(req.body) ? req.body : [req.body];
+    if (events.some((e) => !e.sessionId || e.seq == null || !e.type || e.payload == null)) {
+      return res.status(400).json({ error: 'Each event requires sessionId, seq, type, and payload' });
+    }
+    const inserted = await ClaudeCodeEvent.insertMany(events, { ordered: true });
+    res.status(201).json(inserted);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/claude-code-events/:sessionId', async (req, res) => {
+  try {
+    const events = await ClaudeCodeEvent.find({ sessionId: req.params.sessionId }).sort({ seq: 1 });
+    res.json(events);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
