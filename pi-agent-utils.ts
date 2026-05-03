@@ -23,14 +23,18 @@ export function handleEvent(event: AgentEvent) {
 
     case "turn_end":
       console.log("\n--- turn end ---");
+      if (event.toolResults.length > 0) {
+        console.log(`tool results:\n${JSON.stringify(event.toolResults, null, 2)}`);
+      }
       break;
 
     case "message_start":
-      console.log("\n--- message start ---");
+      console.log(`\n--- message start (role: ${event.message.role}) ---`);
+      
       break;
 
     case "message_end":
-      console.log("\n--- message end ---");
+      console.log(`\n--- message end (role: ${event.message.role}) ---`);
       break;
 
     case "message_update":
@@ -39,16 +43,16 @@ export function handleEvent(event: AgentEvent) {
           process.stdout.write(event.assistantMessageEvent.delta);
           break;
         case "thinking_end":
-          console.log("\n--- end of thinking ---\n");
+          console.log(`\n--- end of thinking ---\n${event.assistantMessageEvent.content}\n`);
           break;
         case "text_delta":
           process.stdout.write(event.assistantMessageEvent.delta);
           break;
-        case "toolcall_end":
-          console.log(`\n🔧 [tool call] ${event.assistantMessageEvent.toolCall.name} ${JSON.stringify(event.assistantMessageEvent.toolCall.arguments)}`);
-          break;
         case "text_end":
           console.log(`\n--- text block end ---`);
+          break;
+        case "toolcall_end":
+          console.log(`\n🔧 [tool call]\n${JSON.stringify(event.assistantMessageEvent.toolCall, null, 2)}`);
           break;
         case "done":
           console.log(`\n--- stream done (${event.assistantMessageEvent.reason}) ---`);
@@ -60,25 +64,24 @@ export function handleEvent(event: AgentEvent) {
       break;
 
     case "tool_execution_start":
-      console.log(`\n⚙️  [${event.toolName}] ${JSON.stringify(event.args)}`);
-      
-      // Log file path for write/edit operations
-      if (event.toolName === 'write' || event.toolName === 'edit') {
-        const filePath = (event.args as any)?.filePath;
-        if (filePath) {
-          console.log(`📝 File operation: ${event.toolName} → ${filePath}`);
-        }
-      }
+      console.log(`\n⚙️  [${event.toolName}]\n${JSON.stringify(event.args, null, 2)}`);
       break;
 
-    case "tool_execution_update":
-      process.stdout.write(String(event.partialResult));
+    case "tool_execution_update": {
+      const partial = event.partialResult as any;
+      const text = typeof partial === "string"
+        ? partial
+        : partial?.content?.[0]?.text ?? null;
+      if (text) process.stdout.write(text);
       break;
+    }
 
     case "tool_execution_end": {
-      const result = String(event.result);
+      const result = typeof event.result === "string"
+        ? event.result
+        : JSON.stringify(event.result, null, 2);
       if (event.isError) {
-        console.log(`\n❌ [${event.toolName}] error: ${result}`);
+        console.log(`\n❌ [${event.toolName}] error:\n${result}`);
       } else {
         console.log(`\n✅ [${event.toolName}]:\n${result}`);
       }

@@ -150,12 +150,26 @@ async function lineCountExample() {
 // Run examples
 // ============================================================================
 
+const examples: Record<string, () => Promise<void>> = {
+  basic: basicExample,
+  pr: prReviewerExample,
+  conversation: conversationExample,
+  logging: detailedLoggingExample,
+  linecount: lineCountExample,
+};
+
 async function main() {
-  await basicExample();
-  await prReviewerExample();
-  await conversationExample();
-  await detailedLoggingExample();
-  await lineCountExample();
+  const arg = process.argv[2];
+  if (arg) {
+    const fn = examples[arg];
+    if (!fn) {
+      console.error(`Unknown example "${arg}". Available: ${Object.keys(examples).join(", ")}`);
+      process.exit(1);
+    }
+    await fn();
+  } else {
+    await basicExample();
+  }
 }
 
 main().catch(console.error);
