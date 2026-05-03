@@ -144,7 +144,7 @@ export class ClaudeCodeAgent {
     return args;
   }
 
-  private async *_spawnAndStream(args: string[]): AsyncGenerator<ClaudeEvent> {
+  private async *_spawnAndStream(args: string[], timeoutMs = 120_000): AsyncGenerator<ClaudeEvent> {
     // Simple async queue: producers push to `pending`, consumers await `notify`.
     const pending: ClaudeEvent[] = [];
     let notify: (() => void) | null = null;
@@ -157,6 +157,14 @@ export class ClaudeCodeAgent {
     };
 
     const proc = spawn("claude", args, { stdio: ["ignore", "pipe", "pipe"] });
+
+    // Kill the process and emit an error if it doesn't finish within timeoutMs.
+    const timer = setTimeout(() => {
+      if (!closed) {
+        proc.kill();
+        push({ type: "error", message: `Claude CLI timed out after ${timeoutMs / 1000}s` });
+      }
+    }, timeoutMs);
 
     let lineBuffer = "";
     let stderrBuffer = "";
@@ -176,6 +184,7 @@ export class ClaudeCodeAgent {
     });
 
     proc.on("close", (code: number | null) => {
+      clearTimeout(timer);
       // Flush any remaining buffered content
       if (lineBuffer.trim()) {
         const events = this._parseLine(lineBuffer);

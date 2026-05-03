@@ -19,7 +19,7 @@ curl -s -X POST http://localhost:5000/runtime/run \
       "description": "A test Claude Code agent",
       "agentType": "claude-code",
       "systemPrompt": "You are a concise code reviewer. Answer in plain text, no markdown.",
-      "permissionMode": "default"
+      "permissionMode": "bypassPermissions"
     }
   }'
 
