@@ -282,6 +282,17 @@
   box-shadow: 0 0 0 2px rgba(124, 140, 248, 0.15);
 }
 
+.delete-btn {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: #f87171;
+}
+
+.delete-btn:hover {
+  background: rgba(248, 113, 113, 0.2);
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.15);
+}
+
 .agent-action-btn:active {
   transform: scale(0.98);
 }

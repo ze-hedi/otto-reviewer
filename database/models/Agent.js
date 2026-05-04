@@ -6,7 +6,7 @@ const agentSchema = new mongoose.Schema(
     type: { type: String, default: 'custom' },
     description: { type: String, required: true },
     model: { type: String, required: true },
-    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Inactive' },
     thinkingLevel: { 
       type: String, 
       enum: ['off', 'low', 'medium', 'high', 'xhigh'], 

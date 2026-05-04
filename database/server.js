@@ -106,6 +106,17 @@ app.put('/api/agents/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/agents/:id', async (req, res) => {
+  try {
+    const agent = await Agent.findByIdAndDelete(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    await AgentFile.deleteMany({ agent_id: agent._id });
+    res.json({ message: 'Agent deleted successfully', agent });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Tool Schema endpoints
 app.get('/api/tools', async (req, res) => {
   try {

@@ -48,6 +48,20 @@ function AgentsPage() {
     setShowFlow(true);
   };
 
+  const handleDelete = async (agent) => {
+    if (!window.confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/agents/${agent._id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete agent');
+      }
+      setAgents((prev) => prev.filter((a) => a._id !== agent._id));
+    } catch (err) {
+      alert(`Failed to delete agent: ${err.message}`);
+    }
+  };
+
   const handleRun = async (agent) => {
     try {
       const filesRes = await fetch(`/api/agents/${agent._id}/files`);
@@ -182,6 +196,9 @@ function AgentsPage() {
                   </button>
                   <button className="agent-action-btn edit-btn" onClick={() => openEdit(agent)}>
                     Edit
+                  </button>
+                  <button className="agent-action-btn delete-btn" onClick={() => handleDelete(agent)}>
+                    Delete
                   </button>
                 </div>
               </div>
