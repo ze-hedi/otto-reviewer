@@ -70,7 +70,7 @@ const WorkflowNode = ({
   return (
     <div
       ref={nodeRef}
-      className={`wf-node wf-node--${node.type}${node.agentType === 'claude-code' ? ' wf-node--cc-agent' : ''} ${isSelected ? 'selected' : ''}`}
+      className={`wf-node wf-node--${node.type} ${isSelected ? 'selected' : ''}`}
       style={{ left: `${node.x}px`, top: `${node.y}px` }}
       data-id={node.id}
       data-agent-id={node.agentId}

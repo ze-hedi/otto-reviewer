@@ -2,11 +2,10 @@ import React from 'react';
 
 const Sidebar = ({
   agents, loadingAgents, agentsError,
-  claudeCodeAgents, loadingCCAgents, ccAgentsError,
   tools, loadingTools, toolsError,
   interfaces, loadingInterfaces, interfacesError,
-  onDragStart, onAgentClick, onCCAgentClick,
-  onBuildPiAgent, onBuildCCAgent,
+  onDragStart, onAgentClick,
+  onBuildPiAgent,
 }) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
@@ -14,16 +13,6 @@ const Sidebar = ({
       agentId: agent._id,
       agentName: agent.name,
       agentIcon: agent.icon || '🤖',
-    }));
-    onDragStart(agent);
-  };
-
-  const handleCCAgentDragStart = (e, agent) => {
-    e.dataTransfer.setData('application/json', JSON.stringify({
-      nodeType: 'claude-code-agent',
-      agentId: agent._id,
-      agentName: agent.name,
-      agentIcon: agent.icon || '🖥️',
     }));
     onDragStart(agent);
   };
@@ -97,60 +86,6 @@ const Sidebar = ({
 
         {!loadingAgents && !agentsError && (
           <button className="wf-build-agent-btn" onClick={onBuildPiAgent}>
-            + Build an Agent
-          </button>
-        )}
-
-        {/* ── Claude Code Agents ───────────────────────────── */}
-        <div className="wf-sidebar-header wf-sidebar-header--cc-agents">
-          Claude Code
-          {!loadingCCAgents && !ccAgentsError && (
-            <span className="cc-agent-count">{claudeCodeAgents.length}</span>
-          )}
-        </div>
-
-        {loadingCCAgents && (
-          <div className="loading-spinner">
-            <div className="spinner"></div>
-            <p>Loading...</p>
-          </div>
-        )}
-
-        {ccAgentsError && (
-          <div className="error-state">
-            <p>Failed to load agents</p>
-            <small>{ccAgentsError}</small>
-          </div>
-        )}
-
-        {!loadingCCAgents && !ccAgentsError && claudeCodeAgents.length === 0 && (
-          <div className="empty-state">
-            <p>No Claude Code agents</p>
-            <a href="/agents">Create one</a>
-          </div>
-        )}
-
-        {!loadingCCAgents && !ccAgentsError && claudeCodeAgents.length > 0 && (
-          <div className="wf-category">
-            {claudeCodeAgents.map(agent => (
-              <div
-                key={agent._id}
-                className="wf-component wf-component--cc-agent"
-                draggable="true"
-                onDragStart={(e) => handleCCAgentDragStart(e, agent)}
-                onClick={() => onCCAgentClick?.(agent._id)}
-              >
-                <div className="wf-component-icon wf-component-icon--cc-agent">
-                  {agent.icon || '🖥️'}
-                </div>
-                <span>{agent.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loadingCCAgents && !ccAgentsError && (
-          <button className="wf-build-agent-btn wf-build-agent-btn--cc" onClick={onBuildCCAgent}>
             + Build an Agent
           </button>
         )}

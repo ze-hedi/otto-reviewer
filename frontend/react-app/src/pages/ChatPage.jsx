@@ -37,29 +37,16 @@ function ChatPage() {
   useEffect(() => {
     if (!agent || agentLoggedRef.current) return;
     agentLoggedRef.current = true;
-    if (agent.agentType === 'claude-code') {
-      console.log('[ChatPage] Claude Code Agent loaded:', {
-        id: agent._id,
-        name: agent.name,
-        model: agent.model,
-        permissionMode: agent.permissionMode,
-        maxTurns: agent.maxTurns,
-        allowedTools: agent.allowedTools,
-        mcpServers: agent.mcpServers,
-        systemPrompt: agent.systemPrompt,
-      });
-    } else {
-      console.log('[ChatPage] Pi Agent loaded:', {
-        id: agent._id,
-        name: agent.name,
-        model: agent.model,
-        thinkingLevel: agent.thinkingLevel,
-        sessionMode: agent.sessionMode,
-        workingDir: agent.workingDir,
-        tools: agent.tools,
-        status: agent.status,
-      });
-    }
+    console.log('[ChatPage] Pi Agent loaded:', {
+      id: agent._id,
+      name: agent.name,
+      model: agent.model,
+      thinkingLevel: agent.thinkingLevel,
+      sessionMode: agent.sessionMode,
+      workingDir: agent.workingDir,
+      tools: agent.tools,
+      status: agent.status,
+    });
   }, [agent]);
 
   // Scroll to bottom when messages change
@@ -179,24 +166,20 @@ function ChatPage() {
           )}
         </div>
         <div className="chat-status-dot" title="Active" />
-        {agent?.agentType !== 'claude-code' && (
-          <>
-            <button
-              className={`chat-stats-btn${showStats ? ' active' : ''}`}
-              onClick={() => setShowStats((v) => !v)}
-              title="Toggle session stats"
-            >
-              ◈ Stats
-            </button>
-            <button
-              className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-              onClick={() => setShowConfig((v) => !v)}
-              title="Toggle agent config"
-            >
-              ⬡ Agent
-            </button>
-          </>
-        )}
+        <button
+          className={`chat-stats-btn${showStats ? ' active' : ''}`}
+          onClick={() => setShowStats((v) => !v)}
+          title="Toggle session stats"
+        >
+          ◈ Stats
+        </button>
+        <button
+          className={`chat-stats-btn${showConfig ? ' active' : ''}`}
+          onClick={() => setShowConfig((v) => !v)}
+          title="Toggle agent config"
+        >
+          ⬡ Agent
+        </button>
       </div>
 
       <div className="chat-body">

@@ -10,8 +10,7 @@ const AGENT_ICONS = [
 ];
 
 /**
- * Shared identity section: name, icon picker, description.
- * Used by both PiAgentForm and ClaudeCodeAgentForm.
+ * Identity section for the Pi agent form: name, icon picker, description.
  * Relies on AgentForm.css for all class styles.
  */
 function IdentitySection({ name, setName, description, setDescription, icon, setIcon }) {
