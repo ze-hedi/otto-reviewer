@@ -97,14 +97,14 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildPayload()),
         });
-        onUpdated({ ...agent, agentType: 'pi' });
+        onUpdated(agent);
       } else {
         const agent = await apiCall('/api/agents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildPayload()),
         });
-        onCreated({ ...agent, agentType: 'pi' });
+        onCreated(agent);
       }
     } catch (err) {
       alert(`Failed to save agent: ${err.message}`);

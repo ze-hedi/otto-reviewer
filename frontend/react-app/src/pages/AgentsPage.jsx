@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AgentCreationFlow from '../components/agents/AgentCreationFlow';
+import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
 import './AgentsPage.css';
-import '../components/agents/agents.css';
 import '../components/AgentForm.css';
 
 function AgentsPage() {
@@ -17,15 +16,10 @@ function AgentsPage() {
   const [savingKey, setSavingKey]         = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/agents').then((r) => r.json()),
-      fetch('/api/claude-code-agents').then((r) => r.json()),
-    ])
-      .then(([piAgents, ccAgents]) => {
-        setAgents([
-          ...piAgents.map((a) => ({ ...a, agentType: 'pi' })),
-          ...ccAgents.map((a) => ({ ...a, agentType: 'claude-code' })),
-        ]);
+    fetch('/api/agents')
+      .then((r) => r.json())
+      .then((piAgents) => {
+        setAgents(piAgents);
         setLoading(false);
       })
       .catch((err) => {
@@ -56,11 +50,8 @@ function AgentsPage() {
 
   const handleRun = async (agent) => {
     try {
-      let files = [];
-      if (agent.agentType === 'pi') {
-        const res = await fetch(`/api/agents/${agent._id}/files`);
-        files = await res.json();
-      }
+      const filesRes = await fetch(`/api/agents/${agent._id}/files`);
+      const files = await filesRes.json();
       const res = await fetch('http://localhost:5000/runtime/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +159,7 @@ function AgentsPage() {
         </div>
 
         {showFlow ? (
-          <AgentCreationFlow
+          <PiAgentFormContainer
             editingAgent={editingAgent}
             onCreated={handleCreated}
             onUpdated={handleUpdated}
@@ -183,9 +174,6 @@ function AgentsPage() {
                   <span className={`agent-status ${agent.status?.toLowerCase()}`}>
                     {agent.status}
                   </span>
-                </div>
-                <div className={`agent-type-label ${agent.agentType}`}>
-                  {agent.agentType === 'claude-code' ? '🖥️ Claude Code' : '🤖 Pi Agent'}
                 </div>
                 <p className="agent-description">{agent.description}</p>
                 <div className="agent-actions">
