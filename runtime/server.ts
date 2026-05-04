@@ -9,7 +9,6 @@ import express from 'express';
 import cors from 'cors';
 import { Type } from 'typebox';
 import { PiAgent, PiAgentConfig, ToolInput } from '../pi-agent.js';
-import { ClaudeCodeAgent, ClaudeCodeAgentConfig } from '../claude-code-agents.ts/claude-code-agent.js';
 import { agentLogger } from './agent-logger.js';
 import { handleEvent, handleEventWithClient } from '../pi-agent-utils.js';
 import { ToolExecutor, ToolExecutionResult } from './tool-executor.js';
@@ -28,19 +27,11 @@ interface AgentData {
   model: string;
   description: string;
   type?: string;
-  agentType?: 'pi' | 'claude-code';
   status?: string;
-  // Pi agent fields
   thinkingLevel?: 'off' | 'low' | 'medium' | 'high' | 'xhigh';
   sessionMode?: 'memory' | 'disk' | 'continue';
   workingDir?: string;
   apiKey?: string;
-  // Claude Code agent fields
-  systemPrompt?: string;
-  maxTurns?: number | null;
-  permissionMode?: 'default' | 'auto' | 'acceptEdits' | 'bypassPermissions';
-  allowedTools?: string[];
-  mcpServers?: Record<string, { command: string; args?: string[]; env?: Record<string, string> }>;
 }
 
 interface AgentFile {
@@ -57,9 +48,6 @@ interface RunRequest {
 
 // Map of agentId → PiAgent instance
 const activeAgents = new Map<string, PiAgent>();
-
-// Map of agentId → ClaudeCodeAgent instance
-const activeClaudeAgents = new Map<string, ClaudeCodeAgent>();
 
 // Convenience pointer to the last agent that was run
 let currentAgentId: string | null = null;
@@ -230,47 +218,6 @@ app.post('/runtime/run', async (req, res) => {
     }
   }
 
-  // ── Claude Code agent branch ────────────────────────────────────────────
-  if (agent.agentType === 'claude-code') {
-    const ccConfig: ClaudeCodeAgentConfig = {
-      ...(agent.systemPrompt?.trim()  ? { systemPrompt: agent.systemPrompt.trim() } : {}),
-      ...(agent.model                 ? { model: agent.model }                       : {}),
-      ...(agent.maxTurns != null      ? { maxTurns: agent.maxTurns }                 : {}),
-      ...(agent.permissionMode        ? { permissionMode: agent.permissionMode }      : {}),
-      ...(agent.allowedTools?.length  ? { allowedTools: agent.allowedTools }          : {}),
-      ...(agent.mcpServers && Object.keys(agent.mcpServers).length > 0
-          ? { mcpServers: agent.mcpServers }
-          : {}),
-    };
-
-    try {
-      const ccAgent = new ClaudeCodeAgent(ccConfig);
-      ccAgent.start();
-      activeClaudeAgents.set(agent._id, ccAgent);
-      currentAgentId = agent._id;
-
-      console.log(`[runtime] ClaudeCodeAgent "${agent.name}" (${agent._id}) started`);
-      console.log(`[runtime]   model          : ${agent.model ?? '(cli default)'}`);
-      console.log(`[runtime]   permissionMode : ${ccConfig.permissionMode ?? 'default'}`);
-      console.log(`[runtime]   maxTurns       : ${ccConfig.maxTurns ?? 'unlimited'}`);
-      console.log(`[runtime]   allowedTools   : ${ccConfig.allowedTools?.join(', ') || '(all)'}`);
-
-      res.json({
-        success: true,
-        agentId: agent._id,
-        name: agent.name,
-        model: agent.model ?? null,
-        agentType: 'claude-code',
-      });
-    } catch (err: any) {
-      console.error(`[runtime] Failed to instantiate ClaudeCodeAgent: ${err.message}`);
-      res.status(500).json({ error: err.message });
-    }
-    return;
-  }
-
-  // ── Pi agent branch (existing logic) ────────────────────────────────────
-
   // Build config from DB files
   const soulFile   = files.find((f) => f.type === 'soul');
   const skillsFile = files.find((f) => f.type === 'skills');
@@ -397,44 +344,6 @@ app.post('/runtime/chat/:id', async (req, res) => {
   const { id } = req.params;
   const { message } = req.body as { message?: string };
 
-  // ── Claude Code chat ──────────────────────────────────────────────────────
-  const ccAgent = activeClaudeAgents.get(id);
-  if (ccAgent) {
-    if (!message?.trim()) {
-      res.status(400).json({ error: 'Request body must include a non-empty message' });
-      return;
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    let closed = false;
-    res.on('close', () => { closed = true; });
-    const send = (payload: object) => {
-      if (!closed) res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    };
-
-    console.log(`[runtime] claude-code chat → agent ${id}: "${message.trim().slice(0, 80)}"`);
-    console.log("handdeling claude code messages here ")
-    try {
-      for await (const event of ccAgent.send(message.trim())) {
-        if (event.type === 'text')        send({ type: 'delta', text: event.delta });
-        else if (event.type === 'tool_start') send({ type: 'tool_start', name: event.name });
-        else if (event.type === 'tool_result') send({ type: 'tool_end', name: 'tool', result: event.content, isError: false });
-        else if (event.type === 'result') { send({ type: 'done' }); break; }
-        else if (event.type === 'error')  { send({ type: 'error', message: event.message }); break; }
-      }
-    } catch (err: any) {
-      send({ type: 'error', message: err.message ?? String(err) });
-    } finally {
-      res.end();
-    }
-    return;
-  }
-
-  // ── Pi agent chat ─────────────────────────────────────────────────────────
   const piAgent = activeAgents.get(id);
   if (!piAgent) {
     res.status(404).json({ error: 'Agent not found in runtime. Call /runtime/run first.' });
@@ -506,11 +415,7 @@ app.get('/runtime/agents/:id/config', (req, res) => {
   const piAgent = activeAgents.get(id);
 
   if (!piAgent) {
-    if (activeClaudeAgents.has(id)) {
-      res.status(400).json({ error: 'Agent config panel is not available for Claude Code agents.' });
-    } else {
-      res.status(404).json({ error: 'Agent not found in runtime.' });
-    }
+    res.status(404).json({ error: 'Agent not found in runtime.' });
     return;
   }
 
@@ -523,18 +428,13 @@ app.get('/runtime/agents/:id/config', (req, res) => {
  * GET /runtime/agents/:id/stats
  *
  * Returns context usage and session statistics for an active Pi agent.
- * Not available for Claude Code agents.
  */
 app.get('/runtime/agents/:id/stats', (req, res) => {
   const { id } = req.params;
   const piAgent = activeAgents.get(id);
 
   if (!piAgent) {
-    if (activeClaudeAgents.has(id)) {
-      res.status(400).json({ error: 'Session stats are not available for Claude Code agents.' });
-    } else {
-      res.status(404).json({ error: 'Agent not found in runtime.' });
-    }
+    res.status(404).json({ error: 'Agent not found in runtime.' });
     return;
   }
 
@@ -562,7 +462,6 @@ app.get('/runtime/agents/:id/stats', (req, res) => {
 app.get('/runtime/status', (_req, res) => {
   res.json({
     activeAgents: Array.from(activeAgents.keys()),
-    activeClaudeAgents: Array.from(activeClaudeAgents.keys()),
     currentAgentId,
   });
 });
@@ -574,13 +473,11 @@ app.get('/runtime/status', (_req, res) => {
  */
 app.delete('/runtime/agents/:id', (req, res) => {
   const { id } = req.params;
-  if (!activeAgents.has(id) && !activeClaudeAgents.has(id)) {
+  if (!activeAgents.has(id)) {
     res.status(404).json({ error: 'Agent not found in runtime' });
     return;
   }
   activeAgents.delete(id);
-  activeClaudeAgents.get(id)?.stop();
-  activeClaudeAgents.delete(id);
   if (currentAgentId === id) {
     currentAgentId       = null;
     global.activeAgent   = null;
