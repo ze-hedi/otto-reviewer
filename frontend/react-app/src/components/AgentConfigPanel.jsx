@@ -82,7 +82,7 @@ function AgentConfigPanel({ agentId, onClose }) {
             <div className="acp-section-title">Session</div>
             <ConfigRow label="Session mode" value={cfg.sessionMode} />
             <ConfigRow label="Thinking level" value={cfg.thinkingLevel} />
-            <ConfigRow label="Working dir" value={cfg.workingDir || '(cwd)'} />
+            <ConfigRow label="Playground" value={cfg.playground || '(cwd)'} />
           </section>
         )}
 

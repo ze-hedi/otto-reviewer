@@ -31,6 +31,7 @@ interface AgentData {
   thinkingLevel?: 'off' | 'low' | 'medium' | 'high' | 'xhigh';
   sessionMode?: 'memory' | 'disk' | 'continue';
   workingDir?: string;
+  playground?: string;
   apiKey?: string;
 }
 
@@ -258,6 +259,7 @@ app.post('/runtime/run', async (req, res) => {
     sessionMode: agent.sessionMode || 'memory',
     thinkingLevel: agent.thinkingLevel || 'medium',
     workingDir: agent.workingDir?.trim() || undefined,
+    playground: agent.playground?.trim() || undefined,
     apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
   };
 

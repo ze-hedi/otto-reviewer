@@ -527,13 +527,13 @@ export class PiAgent {
     let sessionManager: SessionManager;
     switch (this.config.sessionMode) {
       case "memory":
-        sessionManager = SessionManager.inMemory();
+        sessionManager = SessionManager.inMemory(this.config.playground);
         break;
       case "disk":
-        sessionManager = SessionManager.create(this.config.workingDir);
+        sessionManager = SessionManager.create(this.config.playground, this.config.workingDir);
         break;
       case "continue":
-        sessionManager = SessionManager.continueRecent(this.config.workingDir);
+        sessionManager = SessionManager.continueRecent(this.config.playground, this.config.workingDir);
         break;
     }
 
