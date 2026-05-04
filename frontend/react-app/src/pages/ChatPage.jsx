@@ -183,14 +183,14 @@ function ChatPage() {
           <>
             <button
               className={`chat-stats-btn${showStats ? ' active' : ''}`}
-              onClick={() => setShowStats((v) => !v)}
+              onClick={() => { setShowStats((v) => !v); setShowConfig(false); }}
               title="Toggle session stats"
             >
               ◈ Stats
             </button>
             <button
               className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-              onClick={() => setShowConfig((v) => !v)}
+              onClick={() => { setShowConfig((v) => !v); setShowStats(false); }}
               title="Toggle agent config"
             >
               ⬡ Agent

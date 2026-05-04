@@ -311,7 +311,7 @@ app.post('/runtime/run', async (req, res) => {
     sessionMode: agent.sessionMode || 'memory',
     thinkingLevel: agent.thinkingLevel || 'medium',
     workingDir: agent.workingDir?.trim() || undefined,
-    apiKey: agent.apiKey || undefined,
+    apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
   };
 
   try {
