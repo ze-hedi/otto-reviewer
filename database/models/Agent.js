@@ -17,9 +17,13 @@ const agentSchema = new mongoose.Schema(
       enum: ['memory', 'disk', 'continue'], 
       default: 'memory' 
     },
-    workingDir: { 
-      type: String, 
-      default: '' 
+    workingDir: {
+      type: String,
+      default: ''
+    },
+    playground: {
+      type: String,
+      default: ''
     },
     apiKey: {
       type: String,

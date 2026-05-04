@@ -174,6 +174,8 @@ export interface PiAgentConfig {
   sessionMode?: "memory" | "disk" | "continue";
   /** Working directory for disk-based sessions */
   workingDir?: string;
+  /** Repository/directory the agent will operate in (cwd for file and shell tools) */
+  playground?: string;
   /** Skills to inject into the agent session */
   skills?: SkillInput[];
   /**
@@ -208,10 +210,11 @@ export class PiAgent {
   private modelRegistry: ModelRegistry;
   private model: Model<Api>;
   private config: Required<
-    Omit<PiAgentConfig, "apiKey" | "workingDir" | "model" | "skills" | "handlers" | "tools" | "onToolExecute">
-  > & { 
-    workingDir: string; 
-    skills: SkillInput[]; 
+    Omit<PiAgentConfig, "apiKey" | "workingDir" | "playground" | "model" | "skills" | "handlers" | "tools" | "onToolExecute">
+  > & {
+    workingDir: string;
+    playground: string;
+    skills: SkillInput[];
     handlers: PiAgentEventHandlers;
     onToolExecute?: PiAgentConfig["onToolExecute"];
   };
@@ -251,6 +254,7 @@ export class PiAgent {
       thinkingLevel: config.thinkingLevel ?? "medium",
       sessionMode: config.sessionMode ?? "memory",
       workingDir: config.workingDir ?? process.cwd(),
+      playground: config.playground ?? process.cwd(),
       skills: config.skills ?? [],
       handlers: config.handlers ?? {},
       onToolExecute: config.onToolExecute,
@@ -540,7 +544,7 @@ export class PiAgent {
     if (needsResourceLoader) {
       const agentDir = getAgentDir();
       const loaderOptions: ConstructorParameters<typeof DefaultResourceLoader>[0] = {
-        cwd: this.config.workingDir,
+        cwd: this.config.playground,
         agentDir,
       };
 

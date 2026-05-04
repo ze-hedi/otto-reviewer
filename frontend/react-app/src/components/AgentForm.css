@@ -662,3 +662,7 @@ details[open] .form-advanced-arrow {
     min-width: 20%;
   }
 }
+
+.form-input--error {
+  border-color: #f87171;
+}

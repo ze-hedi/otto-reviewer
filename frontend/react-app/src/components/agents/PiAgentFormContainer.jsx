@@ -12,6 +12,7 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
   const [thinkingLevel, setThinkingLevel]   = useState(editingAgent?.thinkingLevel || 'medium');
   const [sessionMode, setSessionMode]       = useState(editingAgent?.sessionMode  || 'memory');
   const [workingDir, setWorkingDir]         = useState(editingAgent?.workingDir   || '');
+  const [playground, setPlayground]         = useState(editingAgent?.playground   || '');
   const [systemPromptMode, setSystemPromptMode] = useState('write');
   const [systemPromptText, setSystemPromptText] = useState('');
   const [systemPromptFile, setSystemPromptFile] = useState(null);
@@ -70,6 +71,7 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
     thinkingLevel,
     sessionMode,
     ...(sessionMode === 'disk' || sessionMode === 'continue' ? { workingDir } : {}),
+    playground,
     systemPrompt: getSystemPrompt(),
     skills,
     icon,
@@ -142,7 +144,7 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
     e.target.value = '';
   };
 
-  const isFormValid = formName.trim() && formDescription.trim() && model;
+  const isFormValid = formName.trim() && formDescription.trim() && model && playground.trim();
 
   return (
     <AgentForm
@@ -156,6 +158,7 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
       thinkingLevel={thinkingLevel}     setThinkingLevel={setThinkingLevel}
       sessionMode={sessionMode}         setSessionMode={setSessionMode}
       workingDir={workingDir}           setWorkingDir={setWorkingDir}
+      playground={playground}           setPlayground={setPlayground}
       systemPromptMode={systemPromptMode}   setSystemPromptMode={setSystemPromptMode}
       systemPromptText={systemPromptText}   setSystemPromptText={setSystemPromptText}
       systemPromptFile={systemPromptFile}   setSystemPromptFile={setSystemPromptFile}

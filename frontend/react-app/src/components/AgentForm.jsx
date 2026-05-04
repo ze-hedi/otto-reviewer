@@ -62,6 +62,8 @@ function AgentForm({
   setSessionMode,
   workingDir,
   setWorkingDir,
+  playground,
+  setPlayground,
   systemPromptMode,
   setSystemPromptMode,
   systemPromptText,
@@ -247,6 +249,18 @@ function AgentForm({
             />
           </div>
         )}
+        <div className="form-group">
+          <label className="form-label" htmlFor="playground">Playground</label>
+          <p className="form-hint">Repository or directory the agent will operate in.</p>
+          <input
+            id="playground"
+            className={`form-input${!playground.trim() ? ' form-input--error' : ''}`}
+            type="text"
+            placeholder="/path/to/your/repo"
+            value={playground}
+            onChange={(e) => setPlayground(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* ── Prompt & Skills ───────────────────────────────── */}
