@@ -537,41 +537,48 @@ export class PiAgent {
         break;
     }
 
-    const needsResourceLoader =
-      this.config.skills.length > 0 || this.config.systemPromptSuffix;
+    // Always build a resource loader so we can:
+    // 1. Scope cwd to the playground (bash tool starting dir, system prompt, settings)
+    // 2. Filter out AGENTS.md files from parent directories — the SDK walks up the
+    //    directory tree from cwd, which would otherwise leak workspace-level context
+    //    into the agent's awareness.
+    const agentDir = getAgentDir();
+    const playground = this.config.playground;
+    const loaderOptions: ConstructorParameters<typeof DefaultResourceLoader>[0] = {
+      cwd: playground,
+      agentDir,
+      agentsFilesOverride: (base) => ({
+        agentsFiles: base.agentsFiles.filter((f) =>
+          f.path.startsWith(playground + "/") ||
+          f.path.startsWith(playground + path.sep)
+        ),
+      }),
+    };
 
-    let resourceLoader: DefaultResourceLoader | undefined;
-    if (needsResourceLoader) {
-      const agentDir = getAgentDir();
-      const loaderOptions: ConstructorParameters<typeof DefaultResourceLoader>[0] = {
-        cwd: this.config.playground,
-        agentDir,
-      };
-
-      if (this.config.systemPromptSuffix) {
-        loaderOptions.appendSystemPrompt = [this.config.systemPromptSuffix];
-      }
-
-      if (this.config.skills.length > 0) {
-        const { tmpDir, skills: injectedSkills } = this._writeSkillsToTmp();
-        this.skillsTmpDir = tmpDir;
-        loaderOptions.skillsOverride = (base) => ({
-          skills: [...base.skills, ...injectedSkills],
-          diagnostics: base.diagnostics,
-        });
-      }
-
-      resourceLoader = new DefaultResourceLoader(loaderOptions);
-      await resourceLoader.reload();
+    if (this.config.systemPromptSuffix) {
+      loaderOptions.appendSystemPrompt = [this.config.systemPromptSuffix];
     }
 
+    if (this.config.skills.length > 0) {
+      const { tmpDir, skills: injectedSkills } = this._writeSkillsToTmp();
+      this.skillsTmpDir = tmpDir;
+      loaderOptions.skillsOverride = (base) => ({
+        skills: [...base.skills, ...injectedSkills],
+        diagnostics: base.diagnostics,
+      });
+    }
+
+    const resourceLoader = new DefaultResourceLoader(loaderOptions);
+    await resourceLoader.reload();
+
     const { session } = await createAgentSession({
+      cwd: playground,
       model: this.model,
       sessionManager,
       authStorage: this.authStorage,
       modelRegistry: this.modelRegistry,
       thinkingLevel: this.config.thinkingLevel,
-      ...(resourceLoader ? { resourceLoader } : {}),
+      resourceLoader,
       // Add custom tools if any are registered
       ...(this.toolDefinitions.size > 0 ? { customTools: Array.from(this.toolDefinitions.values()) } : {}),
     });
