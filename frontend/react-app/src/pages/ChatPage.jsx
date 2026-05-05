@@ -65,13 +65,11 @@ function ChatPage() {
   };
 
   const finalizeAssistant = () => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.role === 'assistant') {
-        return [...prev.slice(0, -1), { ...last, streaming: false }];
-      }
-      return prev;
-    });
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.role === 'assistant' && m.streaming ? { ...m, streaming: false } : m
+      )
+    );
   };
 
   const appendToolEvent = (event) => {
