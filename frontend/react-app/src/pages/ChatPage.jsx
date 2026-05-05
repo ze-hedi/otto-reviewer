@@ -60,18 +60,32 @@ function ChatPage() {
       if (last?.role === 'assistant' && last.streaming) {
         return [...prev.slice(0, -1), { ...last, text: last.text + text }];
       }
-      return [...prev, { role: 'assistant', text, streaming: true, id: Date.now() }];
+      // First text delta after thinking — close any streaming thinking bubble.
+      const closed = prev.map((m) =>
+        m.role === 'thinking' && m.streaming ? { ...m, streaming: false } : m
+      );
+      return [...closed, { role: 'assistant', text, streaming: true, id: Date.now() }];
+    });
+  };
+
+  const appendThinkingDelta = (text) => {
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'thinking' && last.streaming) {
+        return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+      }
+      return [...prev, { role: 'thinking', text, streaming: true, id: Date.now() }];
     });
   };
 
   const finalizeAssistant = () => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.role === 'assistant') {
-        return [...prev.slice(0, -1), { ...last, streaming: false }];
-      }
-      return prev;
-    });
+    setMessages((prev) =>
+      prev.map((m) =>
+        (m.role === 'assistant' || m.role === 'thinking') && m.streaming
+          ? { ...m, streaming: false }
+          : m
+      )
+    );
   };
 
   const appendToolEvent = (event) => {
@@ -122,6 +136,7 @@ function ChatPage() {
           try { evt = JSON.parse(raw); } catch { continue; }
 
           if (evt.type === 'delta') appendDelta(evt.text);
+          else if (evt.type === 'thinking') appendThinkingDelta(evt.text);
           else if (evt.type === 'tool_start') appendToolEvent(evt);
           else if (evt.type === 'tool_end') appendToolEvent(evt);
           else if (evt.type === 'done') finalizeAssistant();
@@ -199,10 +214,11 @@ function ChatPage() {
               </div>
             );
           }
-          if (msg.role === 'assistant') {
+          if (msg.role === 'assistant' || msg.role === 'thinking') {
+            const isThinking = msg.role === 'thinking';
             return (
               <div key={msg.id} className="chat-bubble-row assistant">
-                <div className={`chat-bubble assistant${msg.streaming ? ' streaming' : ''}`}>
+                <div className={`chat-bubble assistant${isThinking ? ' thinking' : ''}${msg.streaming ? ' streaming' : ''}`}>
                   <pre>{msg.text}</pre>
                   {msg.streaming && <span className="cursor" />}
                 </div>

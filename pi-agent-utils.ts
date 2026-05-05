@@ -16,6 +16,9 @@ export function handleEventWithClient(event: AgentEvent, send: (payload: object)
         case "text_delta":
           send({ type: 'delta', text: event.assistantMessageEvent.delta });
           break;
+        case "thinking_delta":
+          send({ type: 'thinking', text: event.assistantMessageEvent.delta });
+          break;
         case "done":
           send({ type: 'done' });
           break;
