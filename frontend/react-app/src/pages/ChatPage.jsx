@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import SessionStatsPanel from '../components/SessionStatsPanel';
 import AgentConfigPanel from '../components/AgentConfigPanel';
 import './ChatPage.css';
@@ -143,6 +147,10 @@ function ChatPage() {
           else if (evt.type === 'error') throw new Error(evt.message);
         }
       }
+      // Ensure cursor is removed even if the stream closed without a trailing
+      // newline (leaving the 'done' event unprocessed in buf) or without
+      // sending a 'done' event at all.
+      finalizeAssistant();
     } catch (err) {
       setError(err.message);
       finalizeAssistant();
@@ -183,14 +191,14 @@ function ChatPage() {
         <div className="chat-status-dot" title="Active" />
         <button
           className={`chat-stats-btn${showStats ? ' active' : ''}`}
-          onClick={() => setShowStats((v) => !v)}
+          onClick={() => { const next = !showStats; setShowStats(next); if (next) setShowConfig(false); }}
           title="Toggle session stats"
         >
           ◈ Stats
         </button>
         <button
           className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-          onClick={() => setShowConfig((v) => !v)}
+          onClick={() => { const next = !showConfig; setShowConfig(next); if (next) setShowStats(false); }}
           title="Toggle agent config"
         >
           ⬡ Agent
@@ -219,7 +227,28 @@ function ChatPage() {
             return (
               <div key={msg.id} className="chat-bubble-row assistant">
                 <div className={`chat-bubble assistant${isThinking ? ' thinking' : ''}${msg.streaming ? ' streaming' : ''}`}>
-                  <pre>{msg.text}</pre>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={match[1]}
+                            PreTag="div"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={className} {...props}>{children}</code>
+                        );
+                      },
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
                   {msg.streaming && <span className="cursor" />}
                 </div>
               </div>
