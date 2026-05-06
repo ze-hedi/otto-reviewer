@@ -14,8 +14,7 @@ function ChatPage() {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
-  const [showStats, setShowStats] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
+  const [activePanel, setActivePanel] = useState(null);
 
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -182,15 +181,15 @@ function ChatPage() {
         </div>
         <div className="chat-status-dot" title="Active" />
         <button
-          className={`chat-stats-btn${showStats ? ' active' : ''}`}
-          onClick={() => setShowStats((v) => !v)}
+          className={`chat-stats-btn${activePanel === 'stats' ? ' active' : ''}`}
+          onClick={() => setActivePanel((p) => (p === 'stats' ? null : 'stats'))}
           title="Toggle session stats"
         >
           ◈ Stats
         </button>
         <button
-          className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-          onClick={() => setShowConfig((v) => !v)}
+          className={`chat-stats-btn${activePanel === 'config' ? ' active' : ''}`}
+          onClick={() => setActivePanel((p) => (p === 'config' ? null : 'config'))}
           title="Toggle agent config"
         >
           ⬡ Agent
@@ -280,16 +279,16 @@ function ChatPage() {
       </div>
       </div>
 
-        {showStats && (
+        {activePanel === 'stats' && (
           <SessionStatsPanel
             agentId={agentId}
-            onClose={() => setShowStats(false)}
+            onClose={() => setActivePanel(null)}
           />
         )}
-        {showConfig && (
+        {activePanel === 'config' && (
           <AgentConfigPanel
             agentId={agentId}
-            onClose={() => setShowConfig(false)}
+            onClose={() => setActivePanel(null)}
           />
         )}
       </div>
