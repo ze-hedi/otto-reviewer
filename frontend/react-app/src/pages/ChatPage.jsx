@@ -175,6 +175,14 @@ function ChatPage() {
     }
   };
 
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
   return (
     <div className="chat-page">
       {/* Header */}
@@ -288,9 +296,8 @@ function ChatPage() {
           className="chat-input"
           placeholder="Send a message… (Enter to send, Shift+Enter for newline)"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          rows={1}
           disabled={streaming}
         />
         {streaming ? (

@@ -6,9 +6,10 @@ import '../components/AgentForm.css';
 
 function AgentsPage() {
   const navigate = useNavigate();
-  const [agents, setAgents]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [agents, setAgents]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
+  const [runtimeIds, setRuntimeIds] = useState([]);
   const [showFlow, setShowFlow]           = useState(false);
   const [editingAgent, setEditingAgent]   = useState(null);
   const [popup, setPopup]                 = useState(null); // { message, code, agent }
@@ -16,10 +17,13 @@ function AgentsPage() {
   const [savingKey, setSavingKey]         = useState(false);
 
   useEffect(() => {
-    fetch('/api/agents')
-      .then((r) => r.json())
-      .then((piAgents) => {
+    Promise.all([
+      fetch('/api/agents').then((r) => r.json()),
+      fetch('http://localhost:5000/runtime/status').then((r) => r.json()).catch(() => ({ activeAgents: [] })),
+    ])
+      .then(([piAgents, runtimeStatus]) => {
         setAgents(piAgents);
+        setRuntimeIds(runtimeStatus.activeAgents ?? []);
         setLoading(false);
       })
       .catch((err) => {
@@ -181,12 +185,15 @@ function AgentsPage() {
           />
         ) : (
           <div className="agents-grid">
-            {agents.map((agent) => (
+            {agents.map((agent) => {
+              const isRunning = runtimeIds.includes(agent._id);
+              const statusLabel = isRunning ? 'Active' : agent.status;
+              return (
               <div key={agent._id} className="agent-card">
                 <div className="agent-header">
                   <h3 className="agent-name">{agent.icon} {agent.name}</h3>
-                  <span className={`agent-status ${agent.status?.toLowerCase()}`}>
-                    {agent.status}
+                  <span className={`agent-status ${isRunning ? 'active' : agent.status?.toLowerCase()}`}>
+                    {statusLabel}
                   </span>
                 </div>
                 <p className="agent-description">{agent.description}</p>
@@ -202,7 +209,8 @@ function AgentsPage() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
