@@ -16,7 +16,13 @@ function Home() {
           >
             Create Workflow
           </button>
-          <button 
+          <button
+            className="home-button team-button"
+            onClick={() => navigate('/team-of-agents')}
+          >
+            Create a team of agent
+          </button>
+          <button
             className="home-button chat-button"
             onClick={() => navigate('/chat')}
           >

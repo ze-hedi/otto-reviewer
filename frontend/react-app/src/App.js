@@ -5,6 +5,7 @@ import WorkflowBuilder from './WorkflowBuilder';
 import ChatPage from './pages/ChatPage';
 import AgentsPage from './pages/AgentsPage';
 import ToolsPage from './pages/ToolsPage';
+import TeamOfAgentsPage from './pages/TeamOfAgentsPage';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/chat/:agentId" element={<ChatPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
+        <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -5,6 +5,7 @@ const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
 const ToolSchema = require('./models/ToolSchema');
 const Interface = require('./models/Interface');
+const MultiAgentPattern = require('./models/MultiAgentPattern');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -262,6 +263,17 @@ app.delete('/api/interfaces/:id', async (req, res) => {
     res.json({ message: 'Interface deleted successfully', interface: iface });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Multi-agent pattern endpoints ────────────────────────────────────────────
+
+app.get('/api/multi-agent-patterns', async (req, res) => {
+  try {
+    const patterns = await MultiAgentPattern.find().sort({ name: 1 });
+    res.json(patterns);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
