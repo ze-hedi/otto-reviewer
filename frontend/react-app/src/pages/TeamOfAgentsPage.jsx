@@ -90,9 +90,11 @@ function TeamOfAgentsPage() {
             />
           </div>
           <div className="form-group">
-            <button type="button" className="add-agent-btn team-add-agent-btn" onClick={openAgentPicker}>
-              + Add agent
-            </button>
+            {!showAgentPicker && (
+              <button type="button" className="add-agent-btn team-add-agent-btn" onClick={openAgentPicker}>
+                + Add agent
+              </button>
+            )}
             {showAgentPicker && (
               <div className="agent-picker-inline">
                 <div className="agent-picker-inline-header">
