@@ -66,6 +66,21 @@ function AgentsPage() {
     }
   };
 
+  const handleDeactivate = async (agent) => {
+    try {
+      const res = await fetch(`http://localhost:5000/runtime/agents/${agent._id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to deactivate agent');
+      }
+      setRuntimeIds((prev) => prev.filter((id) => id !== agent._id));
+    } catch (err) {
+      alert(`Failed to deactivate agent: ${err.message}`);
+    }
+  };
+
   const handleRun = async (agent) => {
     try {
       const filesRes = await fetch(`/api/agents/${agent._id}/files`);
@@ -192,9 +207,18 @@ function AgentsPage() {
               <div key={agent._id} className="agent-card">
                 <div className="agent-header">
                   <h3 className="agent-name">{agent.icon} {agent.name}</h3>
-                  <span className={`agent-status ${isRunning ? 'active' : agent.status?.toLowerCase()}`}>
-                    {statusLabel}
-                  </span>
+                  {isRunning ? (
+                    <button
+                      className="agent-status active clickable"
+                      onClick={() => handleDeactivate(agent)}
+                    >
+                      Active
+                    </button>
+                  ) : (
+                    <span className={`agent-status ${agent.status?.toLowerCase()}`}>
+                      Inactive
+                    </span>
+                  )}
                 </div>
                 <p className="agent-description">{agent.description}</p>
                 <div className="agent-actions">

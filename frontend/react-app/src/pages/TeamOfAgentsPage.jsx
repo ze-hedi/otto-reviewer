@@ -50,7 +50,7 @@ return (
     <div className="team-page-container">
       <div className="team-page-content">
         <div className="team-header-row">
-          <h1>Create a team of agent</h1>
+          <h1>Build your orchestrator</h1>
           <button className="team-back-btn" onClick={() => navigate('/')}>
             Back
           </button>

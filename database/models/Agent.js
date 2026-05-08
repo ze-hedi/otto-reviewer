@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const agentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
-    type: { type: String, default: 'custom' },
+    type: { type: String, enum: ['agent', 'orchestrator'], default: 'agent' },
     description: { type: String, required: true },
     model: { type: String, required: true },
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Inactive' },

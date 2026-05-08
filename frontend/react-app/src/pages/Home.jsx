@@ -20,7 +20,7 @@ function Home() {
             className="home-button team-button"
             onClick={() => navigate('/team-of-agents')}
           >
-            Create a team of agent
+            Create an orchestrator
           </button>
           <button
             className="home-button chat-button"

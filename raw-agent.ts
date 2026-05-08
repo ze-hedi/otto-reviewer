@@ -28,9 +28,11 @@ import { PiAgent, type EventCallback, type PiAgentConfig } from "./pi-agent";
 // private fields.
 
 export function createRawAgent(
-  config: Omit<PiAgentConfig, "tools" | "skills" | "systemPromptSuffix">
+  config: Omit<PiAgentConfig, "skills" | "systemPromptSuffix"> & {
+    systemPromptSuffix?: string;
+  }
 ): PiAgent {
-  const agent = new PiAgent({ ...config, tools: [], skills: [] });
+  const agent = new PiAgent({ ...config, skills: [] });
 
   (agent as any)._createSession = async function (): Promise<AgentSession> {
     let sessionManager: SessionManager;
@@ -52,9 +54,17 @@ export function createRawAgent(
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      appendSystemPromptOverride: () => [],
+      appendSystemPromptOverride: () =>
+        this.config.systemPromptSuffix
+          ? [this.config.systemPromptSuffix]
+          : [],
     });
     await resourceLoader.reload();
+
+    // Pass custom tools if any are registered (via addTool or config.tools)
+    const customTools = this.toolDefinitions.size > 0
+      ? Array.from(this.toolDefinitions.values())
+      : undefined;
 
     const { session } = await createAgentSession({
       model: this.model,
@@ -62,8 +72,11 @@ export function createRawAgent(
       modelRegistry: this.modelRegistry,
       thinkingLevel: this.config.thinkingLevel,
       sessionManager,
-      noTools: "all",
       resourceLoader,
+      // "builtin" strips bash/read/edit/write but keeps custom tools visible.
+      // "all" strips everything — used when no custom tools are registered.
+      noTools: customTools ? "builtin" : "all",
+      ...(customTools ? { customTools } : {}),
     });
 
     this.currentSession = session;
