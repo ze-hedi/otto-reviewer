@@ -3,33 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import './TeamOfAgentsPage.css';
 import '../pages/AgentsPage.css';
 
-const DEFAULT_SYSTEM_PROMPTS = {
-  'Router': `You are a routing agent. Your sole responsibility is to analyze the user's request and forward it to the most appropriate specialist agent.
-
-Available agents: {{agents}}
-
-Rules:
-- Read the user message carefully and identify the intent.
-- Select exactly one agent whose expertise best matches the request.
-- Forward the request to that agent without modifying it.
-- If no agent matches, respond with a clear explanation of what is available.
-- Never answer the user's request yourself.`,
-
-  'Subagents as tool': `You are an orchestrator agent. You have access to a set of specialist agents exposed as tools. Break down the user's request into subtasks, delegate each subtask to the appropriate agent-tool, and synthesize their outputs into a single coherent response.
-
-Rules:
-- Decompose complex requests into smaller, focused subtasks.
-- Call the right agent-tool for each subtask.
-- Wait for each result before proceeding when there are dependencies.
-- Combine all results into a clear, unified answer for the user.
-- Do not perform tasks yourself if a specialist agent-tool exists for them.`,
-};
 
 function TeamOfAgentsPage() {
   const navigate = useNavigate();
   const [pattern, setPattern] = useState('');
   const [patterns, setPatterns] = useState([]);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [editedPrompts, setEditedPrompts] = useState({});
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [availableAgents, setAvailableAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
@@ -53,11 +33,23 @@ function TeamOfAgentsPage() {
 
   function handlePatternChange(e) {
     const selectedId = e.target.value;
+    if (pattern) {
+      setEditedPrompts((prev) => ({ ...prev, [pattern]: systemPrompt }));
+    }
     setPattern(selectedId);
     const selected = patterns.find((p) => p._id === selectedId);
-    setSystemPrompt(selected ? (DEFAULT_SYSTEM_PROMPTS[selected.name] ?? '') : '');
+    const cached = editedPrompts[selectedId];
+    setSystemPrompt(cached !== undefined ? cached : (selected?.systemPrompt ?? ''));
     setSelectedAgents([]);
     setShowAgentPicker(false);
+  }
+
+  function handleRun() {
+    fetch(`/api/multi-agent-patterns/${pattern}/system-prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemPrompt }),
+    }).catch(console.error);
   }
 
   return (
@@ -152,7 +144,7 @@ function TeamOfAgentsPage() {
                   </div>
                 )}
               </div>
-              <button type="button" className="team-run-btn">
+              <button type="button" className="team-run-btn" onClick={handleRun}>
                 Run
               </button>
             </>

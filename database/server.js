@@ -277,6 +277,23 @@ app.get('/api/multi-agent-patterns', async (req, res) => {
   }
 });
 
+app.post('/api/multi-agent-patterns/:id/system-prompt', async (req, res) => {
+  try {
+
+    console.log("updating with new system prompt ")
+    const { systemPrompt } = req.body;
+    const pattern = await MultiAgentPattern.findByIdAndUpdate(
+      req.params.id,
+      { systemPrompt },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!pattern) return res.status(404).json({ error: 'Pattern not found' });
+    res.json(pattern);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 connect().then(() => {
   app.listen(PORT, () => console.log(`API server running on http://localhost:${PORT}`));
 }).catch((err) => {
