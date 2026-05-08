@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
 import './TeamOfAgentsPage.css';
 import '../pages/AgentsPage.css';
 
@@ -11,6 +12,7 @@ function TeamOfAgentsPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [editedPrompts, setEditedPrompts] = useState({});
   const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [availableAgents, setAvailableAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
 
@@ -44,15 +46,7 @@ function TeamOfAgentsPage() {
     setShowAgentPicker(false);
   }
 
-  function handleRun() {
-    fetch(`/api/multi-agent-patterns/${pattern}/system-prompt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemPrompt }),
-    }).catch(console.error);
-  }
-
-  return (
+return (
     <div className="team-page-container">
       <div className="team-page-content">
         <div className="team-header-row">
@@ -141,16 +135,33 @@ function TeamOfAgentsPage() {
                         </div>
                       ))}
                     </div>
+                    <button type="button" className="add-agent-btn team-add-agent-btn" onClick={() => setShowCreateAgent(true)}>
+                      + Create an agent
+                    </button>
                   </div>
                 )}
               </div>
-              <button type="button" className="team-run-btn" onClick={handleRun}>
+              <button type="button" className="team-run-btn">
                 Run
               </button>
             </>
           )}
         </form>
       </div>
+      {showCreateAgent && (
+        <>
+          <div className="create-agent-overlay" onClick={() => setShowCreateAgent(false)} />
+          <div className="create-agent-drawer">
+            <PiAgentFormContainer
+              onCreated={(agent) => {
+                setAvailableAgents((prev) => [...prev, agent]);
+                setShowCreateAgent(false);
+              }}
+              onCancel={() => setShowCreateAgent(false)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
