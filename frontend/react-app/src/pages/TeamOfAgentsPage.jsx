@@ -32,6 +32,7 @@ function TeamOfAgentsPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [availableAgents, setAvailableAgents] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState([]);
 
   useEffect(() => {
     fetch('/api/multi-agent-patterns')
@@ -55,6 +56,8 @@ function TeamOfAgentsPage() {
     setPattern(selectedId);
     const selected = patterns.find((p) => p._id === selectedId);
     setSystemPrompt(selected ? (DEFAULT_SYSTEM_PROMPTS[selected.name] ?? '') : '');
+    setSelectedAgents([]);
+    setShowAgentPicker(false);
   }
 
   return (
@@ -80,44 +83,80 @@ function TeamOfAgentsPage() {
               ))}
             </select>
           </div>
-          <div className="form-group">
-            <label htmlFor="system-prompt">System prompt</label>
-            <textarea
-              id="system-prompt"
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Select a pattern to load a default system prompt, or write your own…"
-            />
-          </div>
-          <div className="form-group">
-            {!showAgentPicker && (
-              <button type="button" className="add-agent-btn team-add-agent-btn" onClick={openAgentPicker}>
-                + Add agent
-              </button>
-            )}
-            {showAgentPicker && (
-              <div className="agent-picker-inline">
-                <div className="agent-picker-inline-header">
-                  <span>Select an agent</span>
-                  <button type="button" className="team-back-btn" onClick={() => setShowAgentPicker(false)}>Close</button>
-                </div>
-                <div className="agents-grid">
-                  {availableAgents.map((agent) => (
-                    <div key={agent._id} className="agent-card">
-                      <div className="agent-header">
-                        <h3 className="agent-name">{agent.icon} {agent.name}</h3>
-                        <span className={`agent-status ${agent.status?.toLowerCase()}`}>{agent.status}</span>
-                      </div>
-                      <p className="agent-description">{agent.description}</p>
-                      <div className="agent-actions">
-                        <button type="button" className="agent-action-btn edit-btn">Add</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          {pattern && (
+            <>
+              <div className="form-group">
+                <label htmlFor="system-prompt">System prompt</label>
+                <textarea
+                  id="system-prompt"
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder="Select a pattern to load a default system prompt, or write your own…"
+                />
               </div>
-            )}
-          </div>
+              <div className="form-group">
+                {selectedAgents.length > 0 && (
+                  <div className="selected-agents-list">
+                    <label className="selected-agents-label">Spawned agents</label>
+                    <div className="selected-agents-chips">
+                      {selectedAgents.map((agent) => (
+                        <div key={agent._id} className="selected-agent-chip">
+                          <span>{agent.icon} {agent.name}</span>
+                          <button
+                            type="button"
+                            className="selected-agent-remove"
+                            onClick={() => setSelectedAgents((prev) => prev.filter((a) => a._id !== agent._id))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!showAgentPicker && (
+                  <button type="button" className="add-agent-btn team-add-agent-btn" onClick={openAgentPicker}>
+                    + Add agent
+                  </button>
+                )}
+                {showAgentPicker && (
+                  <div className="agent-picker-inline">
+                    <div className="agent-picker-inline-header">
+                      <span>Select an agent</span>
+                      <button type="button" className="team-back-btn" onClick={() => setShowAgentPicker(false)}>Close</button>
+                    </div>
+                    <div className="agents-grid">
+                      {availableAgents.map((agent) => (
+                        <div key={agent._id} className="agent-card">
+                          <div className="agent-header">
+                            <h3 className="agent-name">{agent.icon} {agent.name}</h3>
+                            <span className={`agent-status ${agent.status?.toLowerCase()}`}>{agent.status}</span>
+                          </div>
+                          <p className="agent-description">{agent.description}</p>
+                          <div className="agent-actions">
+                            <button
+                              type="button"
+                              className="agent-action-btn edit-btn"
+                              onClick={() => {
+                                if (!selectedAgents.find((a) => a._id === agent._id)) {
+                                  setSelectedAgents((prev) => [...prev, agent]);
+                                }
+                              }}
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button type="button" className="team-run-btn">
+                Run
+              </button>
+            </>
+          )}
         </form>
       </div>
     </div>

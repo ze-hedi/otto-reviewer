@@ -129,6 +129,80 @@
   width: 100%;
 }
 
+.selected-agents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.selected-agents-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.selected-agents-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.selected-agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem 0.4rem 0.85rem;
+  background: rgba(124, 140, 248, 0.1);
+  border: 1px solid #7c8cf8;
+  border-radius: 20px;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.selected-agent-remove {
+  background: none;
+  border: none;
+  color: #7c8cf8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.selected-agent-remove:hover {
+  opacity: 1;
+}
+
+.team-run-btn {
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(124, 140, 248, 0.1);
+  color: #7c8cf8;
+  border: 1px solid #7c8cf8;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.team-run-btn:hover {
+  background: rgba(124, 140, 248, 0.2);
+  box-shadow: 0 0 0 2px rgba(124, 140, 248, 0.15);
+}
+
+.team-run-btn:active {
+  transform: scale(0.98);
+}
+
 .agent-picker-inline {
   margin-top: 1rem;
   border: 1px solid #2a3350;
