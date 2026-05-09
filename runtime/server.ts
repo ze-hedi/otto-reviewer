@@ -61,6 +61,9 @@ const activeAgents = new Map<string, PiAgent>();
 // Map of orchestratorId → PiOrchestrator instance
 const activeOrchestrators = new Map<string, PiOrchestrator>();
 
+// Map of orchestratorId → sub-agent metadata (for the UI)
+const orchestratorSubAgents = new Map<string, AgentData[]>();
+
 // Convenience pointer to the last agent that was run
 let currentAgentId: string | null = null;
 
@@ -284,6 +287,7 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
 
     // Store orchestrator and its underlying PiAgent
     activeOrchestrators.set(orchestratorId, orchestrator);
+    orchestratorSubAgents.set(orchestratorId, agents);
     activeAgents.set(orchestratorId, orchestrator.getOrchestrator());
     currentAgentId = orchestratorId;
     global.activeAgent = orchestrator.getOrchestrator();
@@ -303,6 +307,21 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
     console.error(`[runtime] Failed to create orchestrator: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * GET /runtime/orchestrator/:id/subagents
+ *
+ * Returns the list of sub-agents for an orchestrator.
+ */
+app.get('/runtime/orchestrator/:id/subagents', (req, res) => {
+  const { id } = req.params;
+  const agents = orchestratorSubAgents.get(id);
+  if (!agents) {
+    res.status(404).json({ error: 'Orchestrator not found or not an orchestrator' });
+    return;
+  }
+  res.json(agents);
 });
 
 /**
@@ -460,6 +479,7 @@ app.delete('/runtime/agents/:id', (req, res) => {
   activeAgents.delete(id);
   if (activeOrchestrators.has(id)) {
     activeOrchestrators.delete(id);
+    orchestratorSubAgents.delete(id);
     console.log(`[runtime] Orchestrator ${id} removed`);
   }
   if (currentAgentId === id) {

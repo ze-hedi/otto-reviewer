@@ -6,6 +6,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import SessionStatsPanel from '../components/SessionStatsPanel';
 import AgentConfigPanel from '../components/AgentConfigPanel';
+import SubAgentsPanel from '../components/SubAgentsPanel';
 import './ChatPage.css';
 
 function ChatPage() {
@@ -20,6 +21,7 @@ function ChatPage() {
   const [error, setError] = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [showSubAgents, setShowSubAgents] = useState(false);
   const [expandedThinking, setExpandedThinking] = useState({});
 
   const bottomRef = useRef(null);
@@ -205,18 +207,27 @@ function ChatPage() {
         <div className="chat-status-dot" title="Active" />
         <button
           className={`chat-stats-btn${showStats ? ' active' : ''}`}
-          onClick={() => { const next = !showStats; setShowStats(next); if (next) setShowConfig(false); }}
+          onClick={() => { const next = !showStats; setShowStats(next); if (next) { setShowConfig(false); setShowSubAgents(false); } }}
           title="Toggle session stats"
         >
           ◈ Stats
         </button>
         <button
           className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-          onClick={() => { const next = !showConfig; setShowConfig(next); if (next) setShowStats(false); }}
+          onClick={() => { const next = !showConfig; setShowConfig(next); if (next) { setShowStats(false); setShowSubAgents(false); } }}
           title="Toggle agent config"
         >
           ⬡ Agent
         </button>
+        {agentId?.startsWith('orch-') && (
+          <button
+            className={`chat-stats-btn${showSubAgents ? ' active' : ''}`}
+            onClick={() => { const next = !showSubAgents; setShowSubAgents(next); if (next) { setShowStats(false); setShowConfig(false); } }}
+            title="Toggle sub-agents"
+          >
+            ⊞ Sub-agents
+          </button>
+        )}
       </div>
 
       <div className="chat-body">
@@ -317,6 +328,15 @@ function ChatPage() {
           }
           return null;
         })}
+        {streaming && messages[messages.length - 1]?.role === 'user' && (
+          <div className="chat-bubble-row assistant">
+            <div className="chat-typing-indicator">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+            </div>
+          </div>
+        )}
         {error && (
           <div className="chat-error">Error: {error}</div>
         )}
@@ -360,6 +380,12 @@ function ChatPage() {
           <AgentConfigPanel
             agentId={agentId}
             onClose={() => setShowConfig(false)}
+          />
+        )}
+        {showSubAgents && (
+          <SubAgentsPanel
+            agentId={agentId}
+            onClose={() => setShowSubAgents(false)}
           />
         )}
       </div>

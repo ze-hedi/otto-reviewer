@@ -407,6 +407,39 @@
   border-radius: 4px;
 }
 
+/* ── Typing indicator ──────────────────────────────────────── */
+.chat-typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.75rem 1rem;
+  background: #161b27;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7c8cf8;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30%           { opacity: 1;   transform: translateY(-4px); }
+}
+
 /* ── Error ──────────────────────────────────────────────────── */
 .chat-error {
   align-self: center;

@@ -1,31 +1,6 @@
 import React, { useRef } from 'react';
+import ModelSelect from './ModelSelect';
 import './AgentForm.css';
-
-const MODELS = [
-  {
-    group: 'Anthropic',
-    options: [
-      { value: 'anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-      { value: 'anthropic/claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-      { value: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-      { value: 'anthropic/claude-opus-4-6', label: 'Claude Opus 4.6' },
-    ],
-  },
-  {
-    group: 'OpenAI',
-    options: [
-      { value: 'openai/gpt-4o', label: 'GPT-4o' },
-      { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
-    ],
-  },
-  {
-    group: 'Ollama',
-    options: [
-      { value: 'ollama/llama3', label: 'Llama 3' },
-      { value: 'ollama/mistral', label: 'Mistral' },
-    ],
-  },
-];
 
 const AGENT_ICONS = [
   { value: '🤖', label: 'Robot' },
@@ -180,21 +155,7 @@ function AgentForm({
         <div className="form-section-title">Model</div>
         <div className="form-group">
           <label className="form-label" htmlFor="agent-model">Provider / Model</label>
-          <select
-            id="agent-model"
-            className="form-input form-select"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-          >
-            <option value="" disabled>Select a model...</option>
-            {MODELS.map((group) => (
-              <optgroup key={group.group} label={group.group}>
-                {group.options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          <ModelSelect id="agent-model" value={model} onChange={(e) => setModel(e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">Thinking Level</label>

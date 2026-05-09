@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
+import ModelSelect from '../components/ModelSelect';
 import './TeamOfAgentsPage.css';
 import '../pages/AgentsPage.css';
 
@@ -15,6 +16,7 @@ function TeamOfAgentsPage() {
   const [availableAgents, setAvailableAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [playground, setPlayground] = useState('');
+  const [model, setModel] = useState('anthropic/claude-sonnet-4-6');
   const [popup, setPopup] = useState(null);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ function TeamOfAgentsPage() {
         body: JSON.stringify({
           orchestratorId,
           systemPrompt,
+          model,
           playground,
           agents: selectedAgents,
         }),
@@ -108,6 +111,10 @@ return (
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   placeholder="Loading system prompt…"
                 />
+              </div>
+              <div className="form-group">
+                <label htmlFor="orchestrator-model">Model</label>
+                <ModelSelect id="orchestrator-model" value={model} onChange={(e) => setModel(e.target.value)} />
               </div>
               <div className="form-group">
                 <label htmlFor="playground">Playground</label>
