@@ -125,7 +125,8 @@ export class PiOrchestrator {
             );
           }
         }
-
+        console.log("from tool execution ")
+        console.log(params.agents.length)
         // Spawn all sub-agents in parallel
         const results = await Promise.all(
           params.agents.map(async ({ name, task }) => {

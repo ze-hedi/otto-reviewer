@@ -1,250 +1,350 @@
+/*
+ * High-Performance Distributed Matrix Multiplication using MPI
+ * 
+ * Algorithm: Row-based scatter/gather approach with collective communications
+ * 
+ * Matrix Multiplication: C = A * B
+ * - Matrix A: M x K distributed by rows across processes
+ * - Matrix B: K x N broadcast to all processes
+ * - Matrix C: M x N gathered from all processes
+ * 
+ * Communication Pattern:
+ * 1. MPI_Scatter distributes rows of A (non-uniform block distribution)
+ * 2. MPI_Bcast distributes full matrix B
+ * 3. Local computation: C_local = A_local * B
+ * 4. MPI_Gather collects results to process 0
+ * 
+ * Compilation:
+ *   mpic++ -O3 -march=native -std=c++14 -o matmul_mpi matmul_mpi.cpp -lm
+ * 
+ * Execution:
+ *   mpirun -np <num_processes> ./matmul_mpi <M> <K> <N>
+ *   
+ * Example:
+ *   mpirun -np 4 ./matmul_mpi 4096 4096 4096
+ */
+
 #include <mpi.h>
-#include <cstdio>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <cmath>
+#include <chrono>
 #include <algorithm>
 
-// High-performance MPI matrix multiplication with optimized cache-friendly inner loops
-// Matrix A (M x K) distributed row-wise across ranks
-// Matrix B (K x N) broadcast to all ranks
-// Result C (M x N) gathered at rank 0
+/* Type definitions for cleaner code */
+typedef double scalar_t;
+typedef int idx_t;
 
-// Block size for cache-friendly computation
-#define BLOCK_SIZE 64
+/* Forward declarations */
+void initialize_matrix(scalar_t* matrix, idx_t rows, idx_t cols, int seed);
+void zero_matrix(scalar_t* matrix, idx_t rows, idx_t cols);
+scalar_t frobenius_norm(const scalar_t* matrix, idx_t rows, idx_t cols);
+void print_matrix(const scalar_t* matrix, idx_t rows, idx_t cols, const char* name);
 
-// Matrix dimensions (can be modified)
-#define MATRIX_M 8192
-#define MATRIX_K 8192
-#define MATRIX_N 8192
-
-typedef double dtype;
-
-struct MatrixData {
-    dtype *A;
-    dtype *B;
-    dtype *C;
-    int rows, cols;
-};
-
-// Cache-friendly blocked matrix multiplication
-// Computes C += A * B for given block ranges
-void matmul_blocked(dtype *C, const dtype *A, const dtype *B,
-                    int m_start, int m_end, int k, int n) {
-    // Block-based computation for better cache locality
-    for (int ii = m_start; ii < m_end; ii += BLOCK_SIZE) {
-        int ii_end = std::min(ii + BLOCK_SIZE, m_end);
-        for (int jj = 0; jj < n; jj += BLOCK_SIZE) {
-            int jj_end = std::min(jj + BLOCK_SIZE, n);
-            for (int kk = 0; kk < k; kk += BLOCK_SIZE) {
-                int kk_end = std::min(kk + BLOCK_SIZE, k);
+/*
+ * Distributed matrix multiplication using MPI with row-based distribution
+ *
+ * Parameters:
+ *  - M: number of rows in A (and C)
+ *  - K: number of columns in A (and rows in B)
+ *  - N: number of columns in B (and C)
+ */
+int main(int argc, char** argv)
+{
+    /* MPI initialization */
+    MPI_Init(&argc, &argv);
+    
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    
+    /* Parse command line arguments */
+    if (argc != 4) {
+        if (rank == 0) {
+            fprintf(stderr, "Usage: %s <M> <K> <N>\n", argv[0]);
+            fprintf(stderr, "  M: rows of matrix A and C\n");
+            fprintf(stderr, "  K: columns of A and rows of B\n");
+            fprintf(stderr, "  N: columns of B and C\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+    
+    idx_t M = (idx_t)atoi(argv[1]);  /* rows of A, C */
+    idx_t K = (idx_t)atoi(argv[2]);  /* cols of A, rows of B */
+    idx_t N = (idx_t)atoi(argv[3]);  /* cols of B, C */
+    
+    /* Validate dimensions */
+    if (M <= 0 || K <= 0 || N <= 0 || M % size != 0) {
+        if (rank == 0) {
+            fprintf(stderr, "Error: M (%d) must be divisible by number of processes (%d)\n", M, size);
+            fprintf(stderr, "Error: All dimensions must be positive\n");
+        }
+        MPI_Finalize();
+        return 1;
+    }
+    
+    /* Calculate local matrix dimensions */
+    idx_t local_rows = M / size;  /* Each process gets M/size rows of A */
+    
+    /* Allocate memory on all processes */
+    scalar_t* A_local = (scalar_t*)malloc(local_rows * K * sizeof(scalar_t));
+    scalar_t* B_full = (scalar_t*)malloc(K * N * sizeof(scalar_t));
+    scalar_t* C_local = (scalar_t*)malloc(local_rows * N * sizeof(scalar_t));
+    
+    if (!A_local || !B_full || !C_local) {
+        fprintf(stderr, "[%d] Memory allocation failed\n", rank);
+        MPI_Finalize();
+        return 1;
+    }
+    
+    /* Allocate temporary buffers on process 0 for gather operation */
+    scalar_t* A_full = NULL;
+    scalar_t* C_full = NULL;
+    
+    if (rank == 0) {
+        A_full = (scalar_t*)malloc(M * K * sizeof(scalar_t));
+        C_full = (scalar_t*)malloc(M * N * sizeof(scalar_t));
+        
+        if (!A_full || !C_full) {
+            fprintf(stderr, "Process 0: Memory allocation failed\n");
+            free(A_local);
+            free(B_full);
+            free(C_local);
+            MPI_Finalize();
+            return 1;
+        }
+        
+        /* Initialize matrices on process 0 */
+        initialize_matrix(A_full, M, K, 42);
+        initialize_matrix(B_full, K, N, 123);
+        
+        if (rank == 0) {
+            printf("Matrix dimensions: A[%d x %d], B[%d x %d], C[%d x %d]\n", 
+                   M, K, K, N, M, N);
+            printf("Distributed across %d processes\n", size);
+            printf("Local problem size per process: [%d x %d] * [%d x %d] = [%d x %d]\n",
+                   local_rows, K, K, N, local_rows, N);
+        }
+    } else {
+        zero_matrix(B_full, K, N);
+    }
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    
+    double t_start = MPI_Wtime();
+    
+    /* ========================================================================
+     * COMMUNICATION PHASE 1: Scatter matrix A by rows
+     * 
+     * Each process receives local_rows rows of A
+     * MPI_Scatter with non-uniform send counts is implemented via 
+     * MPI_Scatterv in production code, but here we assume M is divisible by size
+     * ======================================================================== */
+    
+    MPI_Scatter(A_full,           /* send buffer (only used on root) */
+                local_rows * K,   /* send count per process */
+                MPI_DOUBLE,       /* send data type */
+                A_local,          /* receive buffer */
+                local_rows * K,   /* receive count */
+                MPI_DOUBLE,       /* receive data type */
+                0,                /* root process */
+                MPI_COMM_WORLD);  /* communicator */
+    
+    /* ========================================================================
+     * COMMUNICATION PHASE 2: Broadcast matrix B to all processes
+     * 
+     * All processes need the full B matrix for local computation
+     * ======================================================================== */
+    
+    MPI_Bcast(B_full,
+              K * N,
+              MPI_DOUBLE,
+              0,                /* root process */
+              MPI_COMM_WORLD);
+    
+    /* ========================================================================
+     * COMPUTATION PHASE: Local matrix multiplication
+     * 
+     * Each process computes: C_local[local_rows x N] = A_local[local_rows x K] * B[K x N]
+     * 
+     * Using blocked algorithm for cache efficiency:
+     * - Block size tuned for typical L3 cache (8-16 MB)
+     * - Reduces memory traffic and improves spatial locality
+     * ======================================================================== */
+    
+    zero_matrix(C_local, local_rows, N);
+    
+    /* Blocked matrix multiplication with configurable block size */
+    const idx_t BLOCK_SIZE = 64;  /* Tuned for modern CPUs, adjust based on L3 cache */
+    
+    /* Outer loops over blocks */
+    for (idx_t ii = 0; ii < local_rows; ii += BLOCK_SIZE) {
+        for (idx_t kk = 0; kk < K; kk += BLOCK_SIZE) {
+            for (idx_t jj = 0; jj < N; jj += BLOCK_SIZE) {
                 
-                // Inner triple loop over blocks
-                for (int i = ii; i < ii_end; ++i) {
-                    for (int j = jj; j < jj_end; ++j) {
-                        dtype sum = 0.0;
-                        dtype *a_ptr = (dtype *)&A[i * k + kk];
-                        dtype *b_ptr = (dtype *)&B[kk * n + j];
+                /* Inner loops within blocks */
+                idx_t i_max = std::min(ii + BLOCK_SIZE, local_rows);
+                idx_t k_max = std::min(kk + BLOCK_SIZE, K);
+                idx_t j_max = std::min(jj + BLOCK_SIZE, N);
+                
+                for (idx_t i = ii; i < i_max; ++i) {
+                    for (idx_t k = kk; k < k_max; ++k) {
+                        scalar_t a_ik = A_local[i * K + k];
                         
-                        // Innermost loop: cache-friendly access
-                        for (int p = kk; p < kk_end; ++p) {
-                            sum += A[i * k + p] * B[p * n + j];
+                        /* Vectorizable inner loop */
+                        for (idx_t j = jj; j < j_max; ++j) {
+                            C_local[i * N + j] += a_ik * B_full[k * N + j];
                         }
-                        C[i * n + j] += sum;
                     }
                 }
             }
         }
     }
-}
-
-// Simple matrix multiplication without blocking (for small matrices)
-void matmul_simple(dtype *C, const dtype *A, const dtype *B,
-                   int m, int k, int n) {
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
-            dtype sum = 0.0;
-            for (int p = 0; p < k; ++p) {
-                sum += A[i * k + p] * B[p * n + j];
-            }
-            C[i * n + j] = sum;
-        }
-    }
-}
-
-// Optimized inner loop version using registers
-void matmul_optimized(dtype *C, const dtype *A, const dtype *B,
-                      int m, int k, int n) {
-    // Zero-initialize result matrix
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
-            C[i * n + j] = 0.0;
-        }
-    }
     
-    // Use cache-friendly computation with prefetching hints
-    for (int i = 0; i < m; ++i) {
-        dtype *c_row = &C[i * n];
-        
-        for (int p = 0; p < k; ++p) {
-            dtype a_val = A[i * k + p];
-            if (a_val != 0.0) {  // Skip zero elements
-                dtype *b_row = &B[p * n];
-                
-                // Vectorizable inner loop
-                #pragma omp simd
-                for (int j = 0; j < n; ++j) {
-                    c_row[j] += a_val * b_row[j];
-                }
-            }
-        }
-    }
-}
-
-int main(int argc, char **argv) {
-    int rank, size;
-    int M = MATRIX_M;
-    int K = MATRIX_K;
-    int N = MATRIX_N;
+    /* ========================================================================
+     * COMMUNICATION PHASE 3: Gather results from all processes
+     * 
+     * Process 0 collects all local results into final matrix C
+     * ======================================================================== */
     
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Gather(C_local,           /* send buffer */
+               local_rows * N,    /* send count */
+               MPI_DOUBLE,        /* send data type */
+               C_full,            /* receive buffer (only used on root) */
+               local_rows * N,    /* receive count per process */
+               MPI_DOUBLE,        /* receive data type */
+               0,                 /* root process */
+               MPI_COMM_WORLD);
     
-    // Ensure proper distribution
-    if (M % size != 0) {
-        if (rank == 0) {
-            fprintf(stderr, "Error: Matrix rows (M=%d) must be divisible by number of ranks (%d)\n", M, size);
-        }
-        MPI_Finalize();
-        return 1;
-    }
+    double t_end = MPI_Wtime();
+    double elapsed = t_end - t_start;
     
-    int rows_per_rank = M / size;
-    int local_m = rows_per_rank;
+    /* ========================================================================
+     * VERIFICATION PHASE: Check correctness on process 0
+     * 
+     * For production use, implement a reference implementation on smaller data
+     * or use mathematical properties to verify results
+     * ======================================================================== */
     
-    // Allocate local matrices
-    dtype *local_A = (dtype *)malloc(local_m * K * sizeof(dtype));
-    dtype *B = (dtype *)malloc(K * N * sizeof(dtype));
-    dtype *local_C = (dtype *)malloc(local_m * N * sizeof(dtype));
-    
-    if (!local_A || !B || !local_C) {
-        fprintf(stderr, "Rank %d: Memory allocation failed\n", rank);
-        MPI_Finalize();
-        return 1;
-    }
-    
-    // Initialize matrices on rank 0
-    dtype *A = nullptr;
     if (rank == 0) {
-        A = (dtype *)malloc(M * K * sizeof(dtype));
-        if (!A) {
-            fprintf(stderr, "Rank 0: Memory allocation failed for full A\n");
-            MPI_Finalize();
-            return 1;
+        /* Compute Frobenius norm of result for basic sanity check */
+        scalar_t norm_C = frobenius_norm(C_full, M, N);
+        
+        /* Compute theoretical norm bounds */
+        scalar_t norm_A = frobenius_norm(A_full, M, K);
+        scalar_t norm_B = frobenius_norm(B_full, K, N);
+        scalar_t expected_norm_lower = norm_A * norm_B / std::sqrt((scalar_t)K);
+        scalar_t expected_norm_upper = norm_A * norm_B * std::sqrt((scalar_t)K);
+        
+        printf("\n=== PERFORMANCE METRICS ===\n");
+        printf("Elapsed time: %.4f seconds\n", elapsed);
+        
+        /* Compute FLOPs: matmul requires 2*M*K*N floating point operations */
+        double flops = 2.0 * M * K * N;
+        double gflops = flops / elapsed / 1e9;
+        printf("Peak FLOPs: %.2e\n", flops);
+        printf("Achieved GFLOPs: %.2f\n", gflops);
+        
+        printf("\n=== VERIFICATION ===\n");
+        printf("Frobenius norm of C: %.6e\n", norm_C);
+        printf("Expected range: [%.6e, %.6e]\n", expected_norm_lower, expected_norm_upper);
+        
+        if (norm_C >= expected_norm_lower && norm_C <= expected_norm_upper) {
+            printf("✓ Result appears valid\n");
+        } else {
+            printf("✗ Result may be invalid - norm outside expected range\n");
         }
         
-        // Simple initialization
-        #pragma omp parallel for collapse(2)
-        for (int i = 0; i < M; ++i) {
-            for (int j = 0; j < K; ++j) {
-                A[i * K + j] = (dtype)(i + j) / (dtype)(M + K);
-            }
-        }
-        
-        #pragma omp parallel for collapse(2)
-        for (int i = 0; i < K; ++i) {
-            for (int j = 0; j < N; ++j) {
-                B[i * N + j] = (dtype)(i - j) / (dtype)(K + N);
-            }
-        }
-    } else {
-        // Non-root ranks only need B
-        #pragma omp parallel for
-        for (int i = 0; i < K * N; ++i) {
-            B[i] = 0.0;
+        /* Print first few elements for debugging (if matrices are small) */
+        if (M <= 8 && N <= 8) {
+            printf("\nResult matrix C (first %d x %d elements):\n", M, N);
+            print_matrix(C_full, M, N, "C");
         }
     }
     
-    MPI_Barrier(MPI_COMM_WORLD);
-    double start_time = MPI_Wtime();
+    /* ========================================================================
+     * CLEANUP
+     * ======================================================================== */
     
-    // Scatter rows of A from rank 0 to all ranks
-    MPI_Scatter(rank == 0 ? A : nullptr, local_m * K, MPI_DOUBLE,
-                local_A, local_m * K, MPI_DOUBLE,
-                0, MPI_COMM_WORLD);
+    free(A_local);
+    free(B_full);
+    free(C_local);
     
-    // Broadcast B to all ranks
-    MPI_Bcast(B, K * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    
-    // Initialize local result
-    #pragma omp parallel for collapse(2)
-    for (int i = 0; i < local_m; ++i) {
-        for (int j = 0; j < N; ++j) {
-            local_C[i * N + j] = 0.0;
-        }
-    }
-    
-    // Compute local matrix multiplication with optimization
-    if (local_m > 0) {
-        matmul_optimized(local_C, local_A, B, local_m, K, N);
-    }
-    
-    // Gather results at rank 0
-    dtype *C = nullptr;
     if (rank == 0) {
-        C = (dtype *)malloc(M * N * sizeof(dtype));
-        if (!C) {
-            fprintf(stderr, "Rank 0: Memory allocation failed for C\n");
-            MPI_Finalize();
-            return 1;
-        }
+        free(A_full);
+        free(C_full);
     }
-    
-    MPI_Gather(local_C, local_m * N, MPI_DOUBLE,
-               C, local_m * N, MPI_DOUBLE,
-               0, MPI_COMM_WORLD);
-    
-    MPI_Barrier(MPI_COMM_WORLD);
-    double end_time = MPI_Wtime();
-    
-    // Verification and output on rank 0
-    if (rank == 0) {
-        double elapsed = end_time - start_time;
-        long long ops = 2LL * M * N * K;
-        double gflops = (double)ops / (elapsed * 1e9);
-        
-        printf("=== MPI Matrix Multiplication Results ===\n");
-        printf("Matrix dimensions: A(%d x %d) * B(%d x %d) = C(%d x %d)\n", 
-               M, K, K, N, M, N);
-        printf("Number of MPI ranks: %d\n", size);
-        printf("Rows per rank: %d\n", rows_per_rank);
-        printf("Computation time: %.6f seconds\n", elapsed);
-        printf("Performance: %.2f GFLOP/s\n", gflops);
-        printf("Total operations: %lld\n", ops);
-        
-        // Verify result (sample check)
-        if (M <= 512 && N <= 512 && K <= 512) {
-            // Quick sanity check
-            dtype check_sum = 0.0;
-            for (int i = 0; i < M; ++i) {
-                for (int j = 0; j < N; ++j) {
-                    check_sum += C[i * N + j];
-                }
-            }
-            printf("Result checksum (sample): %.6e\n", check_sum);
-        }
-        
-        free(A);
-        free(C);
-    }
-    
-    // Cleanup
-    free(local_A);
-    free(B);
-    free(local_C);
     
     MPI_Finalize();
+    
     return 0;
+}
+
+/*
+ * Initialize matrix with pseudo-random values in range [0, 1)
+ * Uses simple LCG for reproducibility
+ */
+void initialize_matrix(scalar_t* matrix, idx_t rows, idx_t cols, int seed)
+{
+    const uint32_t a = 1103515245;
+    const uint32_t c = 12345;
+    const uint32_t m = 2147483648;  /* 2^31 */
+    
+    uint32_t rng_state = seed;
+    scalar_t inv_m = 1.0 / m;
+    
+    for (idx_t i = 0; i < rows * cols; ++i) {
+        rng_state = (a * rng_state + c) % m;
+        matrix[i] = (scalar_t)rng_state * inv_m;
+    }
+}
+
+/*
+ * Zero-initialize a matrix
+ */
+void zero_matrix(scalar_t* matrix, idx_t rows, idx_t cols)
+{
+    std::memset(matrix, 0, rows * cols * sizeof(scalar_t));
+}
+
+/*
+ * Compute Frobenius norm: sqrt(sum of all elements squared)
+ * Uses Kahan summation for improved numerical stability
+ */
+scalar_t frobenius_norm(const scalar_t* matrix, idx_t rows, idx_t cols)
+{
+    scalar_t sum = 0.0;
+    scalar_t c = 0.0;  /* Kahan compensation */
+    
+    for (idx_t i = 0; i < rows * cols; ++i) {
+        scalar_t val = matrix[i];
+        scalar_t y = val * val - c;
+        scalar_t t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+    }
+    
+    return std::sqrt(sum);
+}
+
+/*
+ * Print matrix in formatted output
+ * Only for small matrices (debugging)
+ */
+void print_matrix(const scalar_t* matrix, idx_t rows, idx_t cols, const char* name)
+{
+    if (rows > 10 || cols > 10) {
+        printf("%s: Matrix too large to print (%d x %d)\n", name, rows, cols);
+        return;
+    }
+    
+    printf("%s (%d x %d):\n", name, rows, cols);
+    for (idx_t i = 0; i < rows; ++i) {
+        for (idx_t j = 0; j < cols; ++j) {
+            printf("%8.4f ", matrix[i * cols + j]);
+        }
+        printf("\n");
+    }
 }

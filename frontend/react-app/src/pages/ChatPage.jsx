@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -20,6 +20,7 @@ function ChatPage() {
   const [error, setError] = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState({});
 
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -78,9 +79,14 @@ function ChatPage() {
       if (last?.role === 'thinking' && last.streaming) {
         return [...prev.slice(0, -1), { ...last, text: last.text + text }];
       }
-      return [...prev, { role: 'thinking', text, streaming: true, id: Date.now() }];
+      const id = Date.now() + Math.random();
+      return [...prev, { role: 'thinking', text, streaming: true, id }];
     });
   };
+
+  const toggleThinking = useCallback((id) => {
+    setExpandedThinking((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   const finalizeAssistant = () => {
     setMessages((prev) =>
@@ -230,11 +236,39 @@ function ChatPage() {
               </div>
             );
           }
-          if (msg.role === 'assistant' || msg.role === 'thinking') {
-            const isThinking = msg.role === 'thinking';
+          if (msg.role === 'thinking') {
+            const isExpanded = expandedThinking[msg.id] ?? false;
             return (
               <div key={msg.id} className="chat-bubble-row assistant">
-                <div className={`chat-bubble assistant${isThinking ? ' thinking' : ''}${msg.streaming ? ' streaming' : ''}`}>
+                <div className={`chat-bubble-thinking${msg.streaming ? ' streaming' : ''}`}>
+                  <button
+                    className="thinking-header"
+                    onClick={() => toggleThinking(msg.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <span className="thinking-icon">{msg.streaming ? '💭' : '🧠'}</span>
+                    <span className="thinking-label">
+                      {msg.streaming ? 'Thinking…' : 'Thinking'}
+                    </span>
+                    {msg.streaming && <span className="thinking-spinner" />}
+                    {!msg.streaming && (
+                      <span className="thinking-toggle">{isExpanded ? '▲' : '▼'}</span>
+                    )}
+                  </button>
+                  {(isExpanded || msg.streaming) && (
+                    <div className="thinking-body">
+                      <pre className="thinking-text">{msg.text}</pre>
+                      {msg.streaming && <span className="cursor" />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+          if (msg.role === 'assistant') {
+            return (
+              <div key={msg.id} className="chat-bubble-row assistant">
+                <div className={`chat-bubble assistant${msg.streaming ? ' streaming' : ''}`}>
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{

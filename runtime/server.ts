@@ -7,11 +7,11 @@ import './load-env.js';
 
 import express from 'express';
 import cors from 'cors';
-import { Type } from 'typebox';
-import { PiAgent, PiAgentConfig, ToolInput } from '../pi-agent.js';
+import { PiAgent, PiAgentConfig } from '../pi-agent.js';
+import { PiOrchestrator } from '../pi-orchestrator.js';
 import { agentLogger } from './agent-logger.js';
 import { handleEvent, handleEventWithClient } from '../pi-agent-utils.js';
-import { ToolExecutor, ToolExecutionResult } from './tool-executor.js';
+
 
 const app = express();
 const PORT = 5000;
@@ -45,10 +45,20 @@ interface RunRequest {
   files?: AgentFile[];
 }
 
+interface OrchestratorRunRequest {
+  orchestratorId: string;
+  systemPrompt: string;
+  model?: string;
+  agents: AgentData[];
+}
+
 // ─── Global state ─────────────────────────────────────────────────────────────
 
 // Map of agentId → PiAgent instance
 const activeAgents = new Map<string, PiAgent>();
+
+// Map of orchestratorId → PiOrchestrator instance
+const activeOrchestrators = new Map<string, PiOrchestrator>();
 
 // Convenience pointer to the last agent that was run
 let currentAgentId: string | null = null;
@@ -74,121 +84,6 @@ function resolveModel(model: string): string {
   if (model.startsWith('gpt-'))    return `openai/${model}`;
   // fallback
   return `anthropic/${model}`;
-}
-
-/**
- * Load tools from the database API
- */
-async function loadToolsFromDatabase(): Promise<any[]> {
-  try {
-    const response = await fetch('http://localhost:4000/api/tools');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tools: ${response.statusText}`);
-    }
-    const tools = await response.json();
-    console.log(`[runtime] Loaded ${tools.length} tool(s) from database`);
-    return tools;
-  } catch (err: any) {
-    console.error(`[runtime] Failed to load tools from database: ${err.message}`);
-    return [];
-  }
-}
-
-/**
- * Convert JSON Schema to TypeBox schema
- * Handles basic types - can be expanded for more complex schemas
- */
-function convertJSONSchemaToTypeBox(jsonSchema: any): any {
-  if (!jsonSchema || typeof jsonSchema !== 'object') {
-    return Type.Any();
-  }
-
-  const schemaType = jsonSchema.type;
-
-  if (schemaType === 'object') {
-    const properties: any = {};
-    const required = jsonSchema.required || [];
-    
-    for (const [key, value] of Object.entries(jsonSchema.properties || {})) {
-      const convertedProp = convertJSONSchemaToTypeBox(value);
-      properties[key] = required.includes(key) 
-        ? convertedProp 
-        : Type.Optional(convertedProp);
-    }
-    
-    return Type.Object(properties);
-  }
-
-  if (schemaType === 'string') {
-    if (jsonSchema.enum) {
-      return Type.Union(jsonSchema.enum.map((v: string) => Type.Literal(v)));
-    }
-    return Type.String();
-  }
-
-  if (schemaType === 'number' || schemaType === 'integer') {
-    return Type.Number();
-  }
-
-  if (schemaType === 'boolean') {
-    return Type.Boolean();
-  }
-
-  if (schemaType === 'array') {
-    const items = jsonSchema.items 
-      ? convertJSONSchemaToTypeBox(jsonSchema.items) 
-      : Type.Any();
-    return Type.Array(items);
-  }
-
-  // Fallback for unknown types
-  return Type.Any();
-}
-
-/**
- * Convert database tool schema to PiAgent ToolInput format
- */
-function convertDatabaseToolToToolInput(dbTool: any): ToolInput {
-  return {
-    name: dbTool.name,
-    label: dbTool.name,
-    description: dbTool.description,
-    parameters: convertJSONSchemaToTypeBox(dbTool.schema),
-  };
-}
-
-/**
- * Create an onToolExecute handler that routes to stored execution functions
- */
-function createToolExecuteHandler(
-  toolFunctionMap: Map<string, string>
-): (toolCallId: string, toolName: string, params: any, signal?: AbortSignal) => Promise<ToolExecutionResult> {
-  return async (toolCallId, toolName, params, signal) => {
-    console.log(`[runtime] 🔧 Executing tool: ${toolName}`);
-    console.log(`[runtime]    params:`, JSON.stringify(params, null, 2));
-
-    const functionString = toolFunctionMap.get(toolName);
-
-    if (!functionString) {
-      throw new Error(`No execution function found for tool: ${toolName}`);
-    }
-
-    try {
-      const result = await ToolExecutor.executeFunction(functionString, params);
-      console.log(`[runtime] ✅ Tool ${toolName} completed successfully`);
-      return result;
-    } catch (err: any) {
-      console.error(`[runtime] ❌ Tool ${toolName} failed: ${err.message}`);
-      // Return error as tool result instead of throwing
-      return {
-        content: [{
-          type: 'text',
-          text: `Error executing tool ${toolName}: ${err.message}`,
-        }],
-        details: { error: true, message: err.message },
-      };
-    }
-  };
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -229,33 +124,10 @@ app.post('/runtime/run', async (req, res) => {
     ? [{ name: 'agent-skills', content: skillsFile.content }]
     : [];
 
-  // Load tools from database
-  let dbTools: any[] = [];
-  let toolInputs: ToolInput[] = [];
-  let toolFunctionMap: Map<string, string> = new Map();
-  
-  try {
-    dbTools = await loadToolsFromDatabase();
-    toolInputs = dbTools.map(convertDatabaseToolToToolInput);
-    toolFunctionMap = new Map(dbTools.map(t => [t.name, t.executionFunction]));
-    
-    if (dbTools.length > 0) {
-      console.log(`[runtime] Registered ${dbTools.length} custom tool(s):`);
-      dbTools.forEach(t => console.log(`[runtime]   - ${t.name}: ${t.description}`));
-    }
-  } catch (err: any) {
-    console.warn(`[runtime] Warning: Failed to load tools: ${err.message}`);
-  }
-
   const config: PiAgentConfig = {
     model: resolveModel(agent.model),
     systemPromptSuffix: soulFile?.content?.trim() || undefined,
     skills,
-    // Add custom tools from database
-    tools: toolInputs.length > 0 ? toolInputs : undefined,
-    // Add tool execution handler
-    onToolExecute: toolInputs.length > 0 ? createToolExecuteHandler(toolFunctionMap) : undefined,
-    // Use agent's configured values with database defaults as fallback
     sessionMode: agent.sessionMode || 'memory',
     thinkingLevel: agent.thinkingLevel || 'medium',
     workingDir: agent.workingDir?.trim() || undefined,
@@ -323,6 +195,110 @@ app.post('/runtime/run', async (req, res) => {
     });
   } catch (err: any) {
     console.error(`[runtime] Failed to instantiate agent: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /runtime/orchestrator/run
+ *
+ * Body: { orchestratorId, systemPrompt, model?, agents: AgentData[] }
+ *
+ * Creates a PiOrchestrator with the given sub-agents. Each sub-agent gets its
+ * own PiAgent stored in activeAgents. The orchestrator's underlying PiAgent is
+ * also stored in activeAgents so existing chat/abort/stats endpoints work.
+ */
+app.post('/runtime/orchestrator/run', async (req, res) => {
+  const { orchestratorId, systemPrompt, model, agents }: OrchestratorRunRequest = req.body;
+
+  if (!orchestratorId) {
+    res.status(400).json({ error: 'orchestratorId is required' });
+    return;
+  }
+  if (!agents?.length) {
+    res.status(400).json({ error: 'At least one agent is required' });
+    return;
+  }
+
+  try {
+    // Create PiAgent for each sub-agent
+    const subAgentEntries: { agentData: AgentData; piAgent: PiAgent }[] = [];
+
+    for (const agent of agents) {
+      if (!agent._id || !agent.model) {
+        res.status(400).json({ error: `Each agent must have _id and model. Missing for: ${agent.name || 'unknown'}` });
+        return;
+      }
+
+      // Fetch agent files from DB
+      let files: AgentFile[] = [];
+      try {
+        const filesRes = await fetch(`http://localhost:4000/api/agents/${agent._id}/files`);
+        if (filesRes.ok) files = await filesRes.json();
+      } catch {
+        console.warn(`[runtime] Could not fetch files for agent "${agent.name}"`);
+      }
+
+      const soulFile = files.find((f) => f.type === 'soul');
+      const skillsFile = files.find((f) => f.type === 'skills');
+      const skills = skillsFile ? [{ name: 'agent-skills', content: skillsFile.content }] : [];
+
+      const config: PiAgentConfig = {
+        model: resolveModel(agent.model),
+        systemPromptSuffix: soulFile?.content?.trim() || undefined,
+        skills,
+        sessionMode: agent.sessionMode || 'memory',
+        thinkingLevel: agent.thinkingLevel || 'medium',
+        workingDir: agent.workingDir?.trim() || undefined,
+        playground: agent.playground?.trim() || undefined,
+        apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
+      };
+
+      const piAgent = new PiAgent(config);
+      activeAgents.set(agent._id, piAgent);
+      subAgentEntries.push({ agentData: agent, piAgent });
+
+      console.log(`[runtime] Sub-agent "${agent.name}" (${agent._id}) created`);
+    }
+
+    // Create orchestrator
+    const orchestrator = new PiOrchestrator({
+      model: resolveModel(model || 'claude-sonnet-4-6'),
+      systemPromptSuffix: systemPrompt?.trim() || undefined,
+      sessionMode: 'memory',
+      thinkingLevel: 'medium',
+      apiKey: process.env.ANTHROPIC_API_KEY || undefined,
+    });
+
+    for (const { agentData, piAgent } of subAgentEntries) {
+      orchestrator.addSubAgent({
+        name: agentData.name,
+        description: agentData.description,
+        agent: piAgent,
+      });
+    }
+
+    orchestrator.initialize();
+
+    // Store orchestrator and its underlying PiAgent
+    activeOrchestrators.set(orchestratorId, orchestrator);
+    activeAgents.set(orchestratorId, orchestrator.getOrchestrator());
+    currentAgentId = orchestratorId;
+    global.activeAgent = orchestrator.getOrchestrator();
+    global.activeAgentId = orchestratorId;
+
+    console.log(`[runtime] Orchestrator "${orchestratorId}" created with ${agents.length} sub-agent(s)`);
+    console.log(`[runtime]   model: ${resolveModel(model || 'claude-sonnet-4-6')}`);
+    console.log(`[runtime]   sub-agents: ${agents.map((a) => a.name).join(', ')}`);
+
+    res.json({
+      success: true,
+      orchestratorId,
+      model: resolveModel(model || 'claude-sonnet-4-6'),
+      subAgents: agents.map((a) => a.name),
+    });
+  } catch (err: any) {
+    console.error(`[runtime] Failed to create orchestrator: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });
@@ -480,6 +456,10 @@ app.delete('/runtime/agents/:id', (req, res) => {
     return;
   }
   activeAgents.delete(id);
+  if (activeOrchestrators.has(id)) {
+    activeOrchestrators.delete(id);
+    console.log(`[runtime] Orchestrator ${id} removed`);
+  }
   if (currentAgentId === id) {
     currentAgentId       = null;
     global.activeAgent   = null;

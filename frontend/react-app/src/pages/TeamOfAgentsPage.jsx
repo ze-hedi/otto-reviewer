@@ -7,10 +7,8 @@ import '../pages/AgentsPage.css';
 
 function TeamOfAgentsPage() {
   const navigate = useNavigate();
-  const [pattern, setPattern] = useState('');
-  const [patterns, setPatterns] = useState([]);
+  const [patternId, setPatternId] = useState(null);
   const [systemPrompt, setSystemPrompt] = useState('');
-  const [editedPrompts, setEditedPrompts] = useState({});
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [availableAgents, setAvailableAgents] = useState([]);
@@ -19,9 +17,53 @@ function TeamOfAgentsPage() {
   useEffect(() => {
     fetch('/api/multi-agent-patterns')
       .then((r) => r.json())
-      .then(setPatterns)
+      .then((patterns) => {
+        const subagentPattern = patterns.find((p) => p.name === 'Subagents as tool');
+        if (subagentPattern) {
+          setPatternId(subagentPattern._id);
+          setSystemPrompt(subagentPattern.systemPrompt ?? '');
+        }
+      })
       .catch(console.error);
   }, []);
+
+  async function handleRun() {
+    if (selectedAgents.length === 0) {
+      alert('Add at least one agent before running.');
+      return;
+    }
+
+    const orchestratorId = `orch-${Date.now()}`;
+
+    try {
+      const res = await fetch('http://localhost:5000/runtime/orchestrator/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orchestratorId,
+          systemPrompt,
+          agents: selectedAgents,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to start orchestrator');
+        return;
+      }
+      navigate(`/chat/${orchestratorId}`, {
+        state: {
+          agent: {
+            _id: orchestratorId,
+            name: 'Orchestrator',
+            description: `Orchestrator with ${selectedAgents.length} sub-agent(s)`,
+            model: data.model,
+          },
+        },
+      });
+    } catch (err) {
+      alert(`Runtime error: ${err.message}`);
+    }
+  }
 
   function openAgentPicker() {
     fetch('/api/agents')
@@ -31,19 +73,6 @@ function TeamOfAgentsPage() {
         setShowAgentPicker(true);
       })
       .catch(console.error);
-  }
-
-  function handlePatternChange(e) {
-    const selectedId = e.target.value;
-    if (pattern) {
-      setEditedPrompts((prev) => ({ ...prev, [pattern]: systemPrompt }));
-    }
-    setPattern(selectedId);
-    const selected = patterns.find((p) => p._id === selectedId);
-    const cached = editedPrompts[selectedId];
-    setSystemPrompt(cached !== undefined ? cached : (selected?.systemPrompt ?? ''));
-    setSelectedAgents([]);
-    setShowAgentPicker(false);
   }
 
 return (
@@ -56,28 +85,13 @@ return (
           </button>
         </div>
         <form className="team-form">
-          <div className="form-group">
-            <label htmlFor="multi-agent-pattern">Multi agent pattern</label>
-            <select
-              id="multi-agent-pattern"
-              value={pattern}
-              onChange={handlePatternChange}
-            >
-              <option value="" disabled>Select a pattern</option>
-              {patterns.map((p) => (
-                <option key={p._id} value={p._id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-          {pattern && (
-            <>
               <div className="form-group">
                 <label htmlFor="system-prompt">System prompt</label>
                 <textarea
                   id="system-prompt"
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  placeholder="Select a pattern to load a default system prompt, or write your own…"
+                  placeholder="Loading system prompt…"
                 />
               </div>
               <div className="form-group">
@@ -141,11 +155,9 @@ return (
                   </div>
                 )}
               </div>
-              <button type="button" className="team-run-btn">
+              <button type="button" className="team-run-btn" onClick={handleRun}>
                 Run
               </button>
-            </>
-          )}
         </form>
       </div>
       {showCreateAgent && (

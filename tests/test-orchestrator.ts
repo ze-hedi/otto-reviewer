@@ -45,11 +45,19 @@ async function main() {
   await orchestrator.execute(
     "I want to write a high performance matmul code using c++ mpi, just write the c++ file no need to test it or to write makefiles etc, i'll do all of that by myself, don't even compile it or test just write the fucking .cpp nothing else. In parallel i want you to write a simple python code that print hello world 10",
     (event) => {
-      if (
-        event.type === "message_update" &&
-        event.assistantMessageEvent.type === "text_delta"
-      ) {
-        process.stdout.write(event.assistantMessageEvent.delta);
+      if (event.type === "message_update") {
+        const se = event.assistantMessageEvent;
+        switch (se.type) {
+          case "text_delta":
+            process.stdout.write(se.delta);
+            break;
+          case "thinking_delta":
+            process.stdout.write(`\x1b[2m${se.delta}\x1b[0m`);
+            break;
+          case "thinking_end":
+            console.log(`\n\x1b[2m--- end thinking ---\x1b[0m\n`);
+            break;
+        }
       }
       if (event.type === "tool_execution_start" && event.toolName === "delegate") {
         const agents = event.args?.agents as Array<{ name: string; task: string }> | undefined;
@@ -58,12 +66,16 @@ async function main() {
           for (const a of agents) {
             console.log(`  -> [${a.name}] "${a.task}"`);
           }
-          console.log(event);
-
         }
       }
       if (event.type === "tool_execution_end") {
         console.log(`\n[delegate] sub-agents finished\n`);
+      }
+      if (event.type === "turn_start") {
+        console.log(`\n--- turn start ---`);
+      }
+      if (event.type === "turn_end") {
+        console.log(`--- turn end ---\n`);
       }
     }
   );

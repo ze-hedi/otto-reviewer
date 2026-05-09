@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Simple script that prints 'Hello World' 10 times"""
+"""
+A simple script that prints 'Hello, World!' to the console.
+"""
 
-for i in range(10):
-    print('Hello World')
+if __name__ == "__main__":
+    print("Hello, World!")
