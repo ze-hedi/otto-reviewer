@@ -11,8 +11,11 @@ function TeamOfAgentsPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null);
   const [availableAgents, setAvailableAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
+  const [playground, setPlayground] = useState('');
+  const [popup, setPopup] = useState(null);
 
   useEffect(() => {
     fetch('/api/multi-agent-patterns')
@@ -29,7 +32,7 @@ function TeamOfAgentsPage() {
 
   async function handleRun() {
     if (selectedAgents.length === 0) {
-      alert('Add at least one agent before running.');
+      setPopup('Add at least one agent before running.');
       return;
     }
 
@@ -42,12 +45,13 @@ function TeamOfAgentsPage() {
         body: JSON.stringify({
           orchestratorId,
           systemPrompt,
+          playground,
           agents: selectedAgents,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || 'Failed to start orchestrator');
+        setPopup(data.error || 'Failed to start orchestrator');
         return;
       }
       navigate(`/chat/${orchestratorId}`, {
@@ -61,7 +65,7 @@ function TeamOfAgentsPage() {
         },
       });
     } catch (err) {
-      alert(`Runtime error: ${err.message}`);
+      setPopup(`Runtime error: ${err.message}`);
     }
   }
 
@@ -77,6 +81,17 @@ function TeamOfAgentsPage() {
 
 return (
     <div className="team-page-container">
+      {popup && (
+        <div className="agent-error-popup">
+          <div className="agent-error-popup__box">
+            <p className="agent-error-popup__title">Cannot start orchestrator</p>
+            <p className="agent-error-popup__message">{popup}</p>
+            <button className="agent-error-popup__close" onClick={() => setPopup(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <div className="team-page-content">
         <div className="team-header-row">
           <h1>Build your orchestrator</h1>
@@ -92,6 +107,17 @@ return (
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   placeholder="Loading system prompt…"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="playground">Playground</label>
+                <input
+                  id="playground"
+                  className="form-input"
+                  type="text"
+                  placeholder="/path/to/your/repo"
+                  value={playground}
+                  onChange={(e) => setPlayground(e.target.value)}
                 />
               </div>
               <div className="form-group">
@@ -145,6 +171,13 @@ return (
                             >
                               Add
                             </button>
+                            <button
+                              type="button"
+                              className="agent-action-btn edit-btn"
+                              onClick={() => setEditingAgent(agent)}
+                            >
+                              Edit
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -170,6 +203,22 @@ return (
                 setShowCreateAgent(false);
               }}
               onCancel={() => setShowCreateAgent(false)}
+            />
+          </div>
+        </>
+      )}
+      {editingAgent && (
+        <>
+          <div className="create-agent-overlay" onClick={() => setEditingAgent(null)} />
+          <div className="create-agent-drawer">
+            <PiAgentFormContainer
+              editingAgent={editingAgent}
+              onUpdated={(updated) => {
+                setAvailableAgents((prev) => prev.map((a) => a._id === updated._id ? updated : a));
+                setSelectedAgents((prev) => prev.map((a) => a._id === updated._id ? updated : a));
+                setEditingAgent(null);
+              }}
+              onCancel={() => setEditingAgent(null)}
             />
           </div>
         </>

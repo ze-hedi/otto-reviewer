@@ -38,17 +38,17 @@ export function createRawAgent(
     let sessionManager: SessionManager;
     switch (this.config.sessionMode) {
       case "disk":
-        sessionManager = SessionManager.create(this.config.workingDir);
+        sessionManager = SessionManager.create(this.config.playground, this.config.workingDir);
         break;
       case "continue":
-        sessionManager = SessionManager.continueRecent(this.config.workingDir);
+        sessionManager = SessionManager.continueRecent(this.config.playground, this.config.workingDir);
         break;
       default:
-        sessionManager = SessionManager.inMemory();
+        sessionManager = SessionManager.inMemory(this.config.playground);
     }
 
     const resourceLoader = new DefaultResourceLoader({
-      cwd: this.config.workingDir,
+      cwd: this.config.playground,
       agentDir: getAgentDir(),
       noSkills: true,
       noPromptTemplates: true,

@@ -49,6 +49,7 @@ interface OrchestratorRunRequest {
   orchestratorId: string;
   systemPrompt: string;
   model?: string;
+  playground?: string;
   agents: AgentData[];
 }
 
@@ -209,7 +210,7 @@ app.post('/runtime/run', async (req, res) => {
  * also stored in activeAgents so existing chat/abort/stats endpoints work.
  */
 app.post('/runtime/orchestrator/run', async (req, res) => {
-  const { orchestratorId, systemPrompt, model, agents }: OrchestratorRunRequest = req.body;
+  const { orchestratorId, systemPrompt, model, playground, agents }: OrchestratorRunRequest = req.body;
 
   if (!orchestratorId) {
     res.status(400).json({ error: 'orchestratorId is required' });
@@ -267,6 +268,7 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
       systemPromptSuffix: systemPrompt?.trim() || undefined,
       sessionMode: 'memory',
       thinkingLevel: 'medium',
+      playground: playground?.trim() || undefined,
       apiKey: process.env.ANTHROPIC_API_KEY || undefined,
     });
 
