@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import SessionStatsPanel from '../components/SessionStatsPanel';
 import AgentConfigPanel from '../components/AgentConfigPanel';
 import SubAgentsPanel from '../components/SubAgentsPanel';
+import SubAgentSessionView from '../components/SubAgentSessionView';
+import ChatArea from '../components/ChatArea';
 import './ChatPage.css';
 
 function ChatPage() {
@@ -22,7 +20,7 @@ function ChatPage() {
   const [showStats, setShowStats] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showSubAgents, setShowSubAgents] = useState(false);
-  const [expandedThinking, setExpandedThinking] = useState({});
+  const [subAgentView, setSubAgentView] = useState(null);
 
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -53,16 +51,6 @@ function ChatPage() {
   useEffect(() => {
     if (!agent || agentLoggedRef.current) return;
     agentLoggedRef.current = true;
-    console.log('[ChatPage] Pi Agent loaded:', {
-      id: agent._id,
-      name: agent.name,
-      model: agent.model,
-      thinkingLevel: agent.thinkingLevel,
-      sessionMode: agent.sessionMode,
-      workingDir: agent.workingDir,
-      tools: agent.tools,
-      status: agent.status,
-    });
   }, [agent]);
 
   // Scroll to bottom when messages change
@@ -95,10 +83,6 @@ function ChatPage() {
     });
   };
 
-  const toggleThinking = useCallback((id) => {
-    setExpandedThinking((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
   const finalizeAssistant = () => {
     setMessages((prev) =>
       prev.map((m) =>
@@ -109,11 +93,21 @@ function ChatPage() {
     );
   };
 
-  const appendToolEvent = (event) => {
+  const appendToolStart = (event) => {
     setMessages((prev) => [
       ...prev,
-      { role: 'tool', event, id: Date.now() + Math.random() },
+      { role: 'tool', name: event.name, args: event.args, result: null, isError: false, done: false, id: Date.now() + Math.random() },
     ]);
+  };
+
+  const appendToolEnd = (event) => {
+    setMessages((prev) => {
+      const idx = prev.findLastIndex((m) => m.role === 'tool' && !m.done);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], result: event.result, isError: event.isError, done: true };
+      return updated;
+    });
   };
 
   const sendMessage = async () => {
@@ -158,8 +152,8 @@ function ChatPage() {
 
           if (evt.type === 'delta') appendDelta(evt.text);
           else if (evt.type === 'thinking') appendThinkingDelta(evt.text);
-          else if (evt.type === 'tool_start') appendToolEvent(evt);
-          else if (evt.type === 'tool_end') appendToolEvent(evt);
+          else if (evt.type === 'tool_start') appendToolStart(evt);
+          else if (evt.type === 'tool_end') appendToolEnd(evt);
           else if (evt.type === 'done') finalizeAssistant();
           else if (evt.type === 'error') throw new Error(evt.message);
         }
@@ -240,144 +234,26 @@ function ChatPage() {
       </div>
 
       <div className="chat-body">
-        <div className="chat-area">
-        {/* Message list */}
-        <div className="chat-messages">
-        {messages.length === 0 && (
-          <div className="chat-empty">
-            <p>Send a message to start the conversation.</p>
-          </div>
+        {subAgentView && (
+          <SubAgentSessionView
+            subAgentView={subAgentView}
+            onBack={() => setSubAgentView(null)}
+          />
         )}
-        {messages.map((msg) => {
-          if (msg.role === 'user') {
-            return (
-              <div key={msg.id} className="chat-bubble-row user">
-                <div className="chat-bubble user">{msg.text}</div>
-              </div>
-            );
-          }
-          if (msg.role === 'thinking') {
-            const isExpanded = expandedThinking[msg.id] ?? false;
-            return (
-              <div key={msg.id} className="chat-bubble-row assistant">
-                <div className={`chat-bubble-thinking${msg.streaming ? ' streaming' : ''}`}>
-                  <button
-                    className="thinking-header"
-                    onClick={() => toggleThinking(msg.id)}
-                    aria-expanded={isExpanded}
-                  >
-                    <span className="thinking-icon">{msg.streaming ? '💭' : '🧠'}</span>
-                    <span className="thinking-label">
-                      {msg.streaming ? 'Thinking…' : 'Thinking'}
-                    </span>
-                    {msg.streaming && <span className="thinking-spinner" />}
-                    {!msg.streaming && (
-                      <span className="thinking-toggle">{isExpanded ? '▲' : '▼'}</span>
-                    )}
-                  </button>
-                  {(isExpanded || msg.streaming) && (
-                    <div className="thinking-body">
-                      <pre className="thinking-text">{msg.text}</pre>
-                      {msg.streaming && <span className="cursor" />}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          }
-          if (msg.role === 'assistant') {
-            return (
-              <div key={msg.id} className="chat-bubble-row assistant">
-                <div className={`chat-bubble assistant${msg.streaming ? ' streaming' : ''}`}>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            {...props}
-                          >
-                            {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code className={className} {...props}>{children}</code>
-                        );
-                      },
-                    }}
-                  >
-                    {msg.text}
-                  </ReactMarkdown>
-                  {msg.streaming && <span className="cursor" />}
-                </div>
-              </div>
-            );
-          }
-          if (msg.role === 'tool') {
-            const { event } = msg;
-            if (event.type === 'tool_start') {
-              return (
-                <div key={msg.id} className="chat-tool-event">
-                  <span className="tool-icon">⚙</span>
-                  <span>Running <code>{event.name}</code>…</span>
-                </div>
-              );
-            }
-            if (event.type === 'tool_end') {
-              return (
-                <div key={msg.id} className={`chat-tool-event${event.isError ? ' error' : ' done'}`}>
-                  <span className="tool-icon">{event.isError ? '✕' : '✓'}</span>
-                  <span><code>{event.name}</code> {event.isError ? 'failed' : 'done'}</span>
-                </div>
-              );
-            }
-          }
-          return null;
-        })}
-        {streaming && messages[messages.length - 1]?.role === 'user' && (
-          <div className="chat-bubble-row assistant">
-            <div className="chat-typing-indicator">
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-              <span className="chat-typing-dot" />
-            </div>
-          </div>
+        {!subAgentView && (
+          <ChatArea
+            messages={messages}
+            streaming={streaming}
+            error={error}
+            input={input}
+            onInputChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onSend={sendMessage}
+            onAbort={abortAgent}
+            bottomRef={bottomRef}
+            textareaRef={textareaRef}
+          />
         )}
-        {error && (
-          <div className="chat-error">Error: {error}</div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input bar */}
-      <div className="chat-input-bar">
-        <textarea
-          ref={textareaRef}
-          className="chat-input"
-          placeholder="Send a message… (Enter to send, Shift+Enter for newline)"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          disabled={streaming}
-        />
-        {streaming ? (
-          <button className="chat-stop-btn" onClick={abortAgent} title="Stop agent">
-            ■
-          </button>
-        ) : (
-          <button
-            className="chat-send-btn"
-            onClick={sendMessage}
-            disabled={!input.trim()}
-          >
-            ↑
-          </button>
-        )}
-      </div>
-      </div>
 
         {showStats && (
           <SessionStatsPanel
@@ -394,7 +270,9 @@ function ChatPage() {
         {showSubAgents && (
           <SubAgentsPanel
             agentId={agentId}
+            orchestratorId={agentId}
             onClose={() => setShowSubAgents(false)}
+            onViewSubAgent={(view) => setSubAgentView(view)}
           />
         )}
       </div>

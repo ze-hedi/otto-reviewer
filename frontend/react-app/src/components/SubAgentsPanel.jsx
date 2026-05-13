@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import './SubAgentsPanel.css';
 
-function SubAgentsPanel({ agentId, onClose }) {
+function SubAgentsPanel({ agentId, orchestratorId, onClose, onViewSubAgent }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -56,10 +56,27 @@ function SubAgentsPanel({ agentId, onClose }) {
           <p className="sap-empty">No sub-agents found.</p>
         )}
         {agents.map((agent) => (
-          <div key={agent._id} className="sap-agent-card">
+          <div
+            key={agent._id}
+            className={`sap-agent-card${agent.stateful ? ' sap-clickable' : ''}`}
+            onClick={async () => {
+              if (!agent.stateful) return;
+              try {
+                const res = await fetch(`http://localhost:5000/runtime/orchestrator/${orchestratorId}/subagent/${agent._id}/messages`);
+                const msgs = await res.json();
+                console.log(`[${agent.name}] messages:`, msgs);
+                if (onViewSubAgent) onViewSubAgent({ agentId: agent._id, name: agent.name, messages: msgs });
+              } catch (err) {
+                console.error(`Failed to fetch messages for ${agent.name}:`, err);
+              }
+            }}
+          >
             <div className="sap-agent-header">
               <span className="sap-agent-icon">{agent.icon || '🤖'}</span>
               <span className="sap-agent-name">{agent.name}</span>
+              <span className={`sap-agent-tag ${agent.stateful ? 'sap-tag-stateful' : 'sap-tag-stateless'}`}>
+                {agent.stateful ? 'Stateful' : 'Stateless'}
+              </span>
             </div>
             <p className="sap-agent-description">{agent.description}</p>
             <div className="sap-agent-meta">

@@ -327,6 +327,31 @@ app.get('/runtime/orchestrator/:id/subagents', (req, res) => {
 });
 
 /**
+ * GET /runtime/orchestrator/:orchId/subagent/:agentId/messages
+ *
+ * Returns the full conversation history for a sub-agent.
+ */
+app.get('/runtime/orchestrator/:orchId/subagent/:agentId/messages', async (req, res) => {
+  const { orchId, agentId } = req.params;
+  const orchestrator = activeOrchestrators.get(orchId);
+  if (!orchestrator) {
+    res.status(404).json({ error: 'Orchestrator not found' });
+    return;
+  }
+  const agent = activeAgents.get(agentId);
+  if (!agent) {
+    res.status(404).json({ error: 'Sub-agent not found' });
+    return;
+  }
+  try {
+    const messages = await agent.getMessages();
+    res.json(messages);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /runtime/chat/:id
  *
  * Body: { message: string }

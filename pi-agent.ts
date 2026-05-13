@@ -800,4 +800,10 @@ export class PiAgent {
   getCurrentSession(): AgentSession | null {
     return this.currentSession;
   }
+
+  /** Get all messages from the current session */
+  async getMessages(): Promise<AgentMessage[]> {
+    const session = await this.getSession();
+    return session.messages;
+  }
 }

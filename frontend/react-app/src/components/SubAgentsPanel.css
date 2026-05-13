@@ -107,6 +107,15 @@
   gap: 0.4rem;
 }
 
+.sap-agent-card.sap-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.sap-agent-card.sap-clickable:hover {
+  border-color: #7c8cf8;
+}
+
 .sap-agent-header {
   display: flex;
   align-items: center;
@@ -147,4 +156,20 @@
   padding: 0.1rem 0.5rem;
   border-radius: 10px;
   font-family: 'Courier New', monospace;
+}
+
+.sap-agent-header > .sap-agent-tag {
+  margin-left: auto;
+}
+
+.sap-tag-stateful {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.sap-tag-stateless {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.25);
 }
