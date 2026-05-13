@@ -17,6 +17,8 @@ function TeamOfAgentsPage() {
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [playground, setPlayground] = useState('');
   const [model, setModel] = useState('anthropic/claude-sonnet-4-6');
+  const [orchestratorName, setOrchestratorName] = useState('');
+  const [orchestratorDescription, setOrchestratorDescription] = useState('');
   const [popup, setPopup] = useState(null);
 
   useEffect(() => {
@@ -33,14 +35,38 @@ function TeamOfAgentsPage() {
   }, []);
 
   async function handleRun() {
+    if (!orchestratorName.trim()) {
+      setPopup('Please provide a name for the orchestrator.');
+      return;
+    }
     if (selectedAgents.length === 0) {
       setPopup('Add at least one agent before running.');
       return;
     }
 
-    const orchestratorId = `orch-${Date.now()}`;
-
     try {
+      // Step 1: Save orchestrator to database
+      const saveRes = await fetch('/api/orchestrators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: orchestratorName.trim(),
+          description: orchestratorDescription.trim() || `Orchestrator with ${selectedAgents.length} sub-agent(s)`,
+          model,
+          playground,
+          systemPrompt,
+          subAgents: selectedAgents.map((e) => ({ agentId: e.agent._id, stateful: e.stateful })),
+        }),
+      });
+      const savedAgent = await saveRes.json();
+      if (!saveRes.ok) {
+        setPopup(savedAgent.error || 'Failed to save orchestrator');
+        return;
+      }
+
+      const orchestratorId = savedAgent._id;
+
+      // Step 2: Send to runtime
       const res = await fetch('http://localhost:5000/runtime/orchestrator/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +75,7 @@ function TeamOfAgentsPage() {
           systemPrompt,
           model,
           playground,
-          agents: selectedAgents,
+          agents: selectedAgents.map((e) => ({ ...e.agent, stateful: e.stateful })),
         }),
       });
       const data = await res.json();
@@ -61,14 +87,15 @@ function TeamOfAgentsPage() {
         state: {
           agent: {
             _id: orchestratorId,
-            name: 'Orchestrator',
+            name: orchestratorName.trim(),
             description: `Orchestrator with ${selectedAgents.length} sub-agent(s)`,
             model: data.model,
+            type: 'orchestrator',
           },
         },
       });
     } catch (err) {
-      setPopup(`Runtime error: ${err.message}`);
+      setPopup(`Error: ${err.message}`);
     }
   }
 
@@ -104,6 +131,26 @@ return (
         </div>
         <form className="team-form">
               <div className="form-group">
+                <label htmlFor="orchestrator-name">Name</label>
+                <input
+                  id="orchestrator-name"
+                  className="form-input"
+                  type="text"
+                  placeholder="My orchestrator"
+                  value={orchestratorName}
+                  onChange={(e) => setOrchestratorName(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="orchestrator-description">Description</label>
+                <textarea
+                  id="orchestrator-description"
+                  placeholder="Describe what this orchestrator does…"
+                  value={orchestratorDescription}
+                  onChange={(e) => setOrchestratorDescription(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
                 <label htmlFor="system-prompt">System prompt</label>
                 <textarea
                   id="system-prompt"
@@ -132,13 +179,25 @@ return (
                   <div className="selected-agents-list">
                     <label className="selected-agents-label">Spawned agents</label>
                     <div className="selected-agents-chips">
-                      {selectedAgents.map((agent) => (
-                        <div key={agent._id} className="selected-agent-chip">
-                          <span>{agent.icon} {agent.name}</span>
+                      {selectedAgents.map((entry) => (
+                        <div key={entry.agent._id} className="selected-agent-chip">
+                          <span>{entry.agent.icon} {entry.agent.name}</span>
+                          <div className="stateful-toggle">
+                            <button
+                              type="button"
+                              className={!entry.stateful ? 'active' : ''}
+                              onClick={() => setSelectedAgents((prev) => prev.map((e) => e.agent._id === entry.agent._id ? { ...e, stateful: false } : e))}
+                            >Stateless</button>
+                            <button
+                              type="button"
+                              className={entry.stateful ? 'active' : ''}
+                              onClick={() => setSelectedAgents((prev) => prev.map((e) => e.agent._id === entry.agent._id ? { ...e, stateful: true } : e))}
+                            >Stateful</button>
+                          </div>
                           <button
                             type="button"
                             className="selected-agent-remove"
-                            onClick={() => setSelectedAgents((prev) => prev.filter((a) => a._id !== agent._id))}
+                            onClick={() => setSelectedAgents((prev) => prev.filter((e) => e.agent._id !== entry.agent._id))}
                           >
                             ×
                           </button>
@@ -171,8 +230,8 @@ return (
                               type="button"
                               className="agent-action-btn edit-btn"
                               onClick={() => {
-                                if (!selectedAgents.find((a) => a._id === agent._id)) {
-                                  setSelectedAgents((prev) => [...prev, agent]);
+                                if (!selectedAgents.find((e) => e.agent._id === agent._id)) {
+                                  setSelectedAgents((prev) => [...prev, { agent, stateful: false }]);
                                 }
                               }}
                             >

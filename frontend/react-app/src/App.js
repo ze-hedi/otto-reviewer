@@ -6,6 +6,7 @@ import ChatPage from './pages/ChatPage';
 import AgentsPage from './pages/AgentsPage';
 import ToolsPage from './pages/ToolsPage';
 import TeamOfAgentsPage from './pages/TeamOfAgentsPage';
+import OrchestratorPage from './pages/OrchestratorPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
+        <Route path="/orchestrators" element={<OrchestratorPage />} />
       </Routes>
     </BrowserRouter>
   );

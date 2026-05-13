@@ -15,6 +15,8 @@ export interface SubAgentDefinition {
   description: string;
   /** The PiAgent instance that handles execution */
   agent: PiAgent;
+  /** If true, use chat() (persistent session) instead of execute() (one-shot) */
+  stateful?: boolean;
 }
 
 export interface OrchestratorConfig extends Omit<PiAgentConfig, "tools" | "onToolExecute" | "skills"> {}
@@ -160,7 +162,11 @@ export class PiOrchestrator {
   ): Promise<string> {
     let finalText = "";
 
-    await def.agent.execute(task, (event) => {
+    const run = def.stateful
+      ? def.agent.chat.bind(def.agent)
+      : def.agent.execute.bind(def.agent);
+
+    await run(task, (event) => {
       if (event.type === "agent_end") {
         // Extract text from the last assistant message
         const messages = (event as any).messages as AgentMessage[];

@@ -6,6 +6,7 @@ const AgentFile = require('./models/AgentFile');
 const ToolSchema = require('./models/ToolSchema');
 const Interface = require('./models/Interface');
 const MultiAgentPattern = require('./models/MultiAgentPattern');
+const Orchestrator = require('./models/Orchestrator');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -14,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/agents', async (req, res) => {
-  const agents = await Agent.find().sort({ createdAt: 1 });
+  const agents = await Agent.find({ type: { $ne: 'orchestrator' } }).sort({ createdAt: 1 });
   res.json(agents);
 });
 
@@ -261,6 +262,101 @@ app.delete('/api/interfaces/:id', async (req, res) => {
     const iface = await Interface.findByIdAndDelete(req.params.id);
     if (!iface) return res.status(404).json({ error: 'Interface not found' });
     res.json({ message: 'Interface deleted successfully', interface: iface });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Orchestrator endpoints ───────────────────────────────────────────────────
+
+app.get('/api/orchestrators', async (req, res) => {
+  try {
+    const agents = await Agent.find({ type: 'orchestrator' }).sort({ createdAt: 1 });
+    const result = await Promise.all(
+      agents.map(async (agent) => {
+        const orch = await Orchestrator.findOne({ orchestrator_id: agent._id }).populate('sub_agents.agent');
+        return { ...agent.toObject(), subAgents: orch?.sub_agents ?? [] };
+      })
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/orchestrators', async (req, res) => {
+  try {
+    const { name, description, model, playground, systemPrompt, subAgents } = req.body;
+
+    const agent = await Agent.create({
+      name,
+      description,
+      model,
+      type: 'orchestrator',
+      playground,
+    });
+
+    await Orchestrator.create({
+      orchestrator_id: agent._id,
+      sub_agents: (subAgents || []).map((s) => ({ agent: s.agentId, stateful: s.stateful ?? false })),
+    });
+
+    if (systemPrompt) {
+      await AgentFile.create({
+        agent_id: agent._id,
+        type: 'soul',
+        content: systemPrompt,
+      });
+    }
+
+    res.status(201).json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/orchestrators/:id', async (req, res) => {
+  try {
+    const { name, description, model, playground, systemPrompt, subAgents } = req.body;
+
+    const agent = await Agent.findByIdAndUpdate(
+      req.params.id,
+      { name, description, model, playground },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!agent) return res.status(404).json({ error: 'Orchestrator not found' });
+
+    if (subAgents) {
+      await Orchestrator.findOneAndUpdate(
+        { orchestrator_id: agent._id },
+        { sub_agents: subAgents.map((s) => ({ agent: s.agentId, stateful: s.stateful ?? false })) },
+        { upsert: true, new: true }
+      );
+    }
+
+    if (systemPrompt) {
+      await AgentFile.findOneAndUpdate(
+        { agent_id: agent._id, type: 'soul' },
+        { content: systemPrompt },
+        { upsert: true, new: true }
+      );
+    } else {
+      await AgentFile.deleteOne({ agent_id: agent._id, type: 'soul' });
+    }
+
+    res.json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/orchestrators/:id', async (req, res) => {
+  try {
+    const agent = await Agent.findByIdAndDelete(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Orchestrator not found' });
+    await Orchestrator.deleteOne({ orchestrator_id: agent._id });
+    await AgentFile.deleteMany({ agent_id: agent._id });
+    res.json({ message: 'Orchestrator deleted successfully', agent });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

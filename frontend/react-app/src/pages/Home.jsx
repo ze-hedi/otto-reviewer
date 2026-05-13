@@ -28,11 +28,17 @@ function Home() {
           >
             Create Chat
           </button>
-          <button 
+          <button
             className="home-button agents-button"
             onClick={() => navigate('/agents')}
           >
             Agents
+          </button>
+          <button
+            className="home-button orchestrators-button"
+            onClick={() => navigate('/orchestrators')}
+          >
+            Orchestrators
           </button>
           <button 
             className="home-button tools-button"

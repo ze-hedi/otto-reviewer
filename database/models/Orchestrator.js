@@ -9,7 +9,10 @@ const orchestratorSchema = new mongoose.Schema(
       unique: true,
     },
     sub_agents: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Agent' }],
+      type: [{
+        agent: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent' },
+        stateful: { type: Boolean, default: false },
+      }],
       default: [],
     },
   },

@@ -35,7 +35,16 @@ function ChatPage() {
       .then((r) => r.json())
       .then((all) => {
         const found = all.find((a) => a._id === agentId);
-        if (found) setAgent(found);
+        if (found) {
+          setAgent(found);
+        } else {
+          return fetch('/api/orchestrators')
+            .then((r) => r.json())
+            .then((orchs) => {
+              const orch = orchs.find((o) => o._id === agentId);
+              if (orch) setAgent({ ...orch, type: 'orchestrator' });
+            });
+        }
       })
       .catch(() => {});
   }, [agentId, agent]);
@@ -219,7 +228,7 @@ function ChatPage() {
         >
           ⬡ Agent
         </button>
-        {agentId?.startsWith('orch-') && (
+        {agent?.type === 'orchestrator' && (
           <button
             className={`chat-stats-btn${showSubAgents ? ' active' : ''}`}
             onClick={() => { const next = !showSubAgents; setShowSubAgents(next); if (next) { setShowStats(false); setShowConfig(false); } }}

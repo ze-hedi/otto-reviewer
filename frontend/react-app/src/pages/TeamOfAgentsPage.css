@@ -181,6 +181,32 @@
   opacity: 1;
 }
 
+.stateful-toggle {
+  display: flex;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #7c8cf8;
+}
+
+.stateful-toggle button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.stateful-toggle button.active {
+  background: #7c8cf8;
+  color: #fff;
+}
+
+.stateful-toggle button:hover:not(.active) {
+  background: rgba(124, 140, 248, 0.15);
+}
+
 .team-run-btn {
   padding: 0.75rem;
   font-size: 1rem;

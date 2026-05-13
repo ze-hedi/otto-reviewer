@@ -33,6 +33,7 @@ interface AgentData {
   workingDir?: string;
   playground?: string;
   apiKey?: string;
+  stateful?: boolean;
 }
 
 interface AgentFile {
@@ -280,6 +281,7 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
         name: agentData.name,
         description: agentData.description,
         agent: piAgent,
+        stateful: agentData.stateful ?? false,
       });
     }
 
