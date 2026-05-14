@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AgentChatProvider } from './AgentChatContext';
 import Home from './pages/Home';
 import WorkflowBuilder from './WorkflowBuilder';
 import ChatPage from './pages/ChatPage';
@@ -12,17 +13,20 @@ import DashboardPage from './pages/DashboardPage';
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/workflow" element={<WorkflowBuilder />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/chat/:agentId" element={<ChatPage />} />
-        <Route path="/agents" element={<AgentsPage />} />
-        <Route path="/tools" element={<ToolsPage />} />
-        <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
-        <Route path="/orchestrators" element={<OrchestratorPage />} />
-        <Route path="/dashboard/:orchestratorId" element={<DashboardPage />} />
-      </Routes>
+      <AgentChatProvider>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/workflow" element={<WorkflowBuilder />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:agentId" element={<ChatPage />} />
+        <Route path="/chat/:agentId/:sessionId" element={<ChatPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
+          <Route path="/orchestrators" element={<OrchestratorPage />} />
+          <Route path="/dashboard/:orchestratorId" element={<DashboardPage />} />
+        </Routes>
+      </AgentChatProvider>
     </BrowserRouter>
   );
 }

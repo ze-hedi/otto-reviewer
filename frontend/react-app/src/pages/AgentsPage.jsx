@@ -1,15 +1,63 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAgentSessions, createSession, removeSession } from '../AgentChatContext';
 import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
 import './AgentsPage.css';
 import '../components/AgentForm.css';
+
+// Small wrapper so we can call useAgentSessions per agent card
+function OpenChatsButton({ agent, onNavigate }) {
+  const sessions = useAgentSessions(agent._id);
+  const [showPopup, setShowPopup] = useState(false);
+
+  if (sessions.length === 0) return null;
+
+  return (
+    <>
+      <button
+        className="agent-action-btn view-btn"
+        onClick={() => setShowPopup(true)}
+      >
+        Chats ({sessions.length})
+      </button>
+      {showPopup && (
+        <div className="agent-error-popup" onClick={() => setShowPopup(false)}>
+          <div className="chats-popup__box" onClick={(e) => e.stopPropagation()}>
+            <p className="chats-popup__title">Active Chats — {agent.name}</p>
+            <div className="chats-popup__list">
+              {sessions.map((s, idx) => (
+                <button
+                  key={s.sessionId}
+                  className="chats-popup__item"
+                  onClick={() => {
+                    setShowPopup(false);
+                    onNavigate(agent, s.sessionId);
+                  }}
+                >
+                  <span className="chats-popup__item-name">Chat {idx + 1}</span>
+                  <span className="chats-popup__item-meta">
+                    {s.messageCount} messages
+                    {s.streaming && <span className="chats-popup__streaming-dot" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button className="chats-popup__close" onClick={() => setShowPopup(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function AgentsPage() {
   const navigate = useNavigate();
   const [agents, setAgents]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
-  const [runtimeIds, setRuntimeIds] = useState([]);
+  const [sessionMap, setSessionMap] = useState({}); // sessionId → agentId
   const [showFlow, setShowFlow]           = useState(false);
   const [editingAgent, setEditingAgent]   = useState(null);
   const [popup, setPopup]                 = useState(null); // { message, code, agent }
@@ -23,7 +71,7 @@ function AgentsPage() {
     ])
       .then(([piAgents, runtimeStatus]) => {
         setAgents(piAgents);
-        setRuntimeIds(runtimeStatus.activeAgents ?? []);
+        setSessionMap(runtimeStatus.sessionAgentMap ?? {});
         setLoading(false);
       })
       .catch((err) => {
@@ -67,38 +115,59 @@ function AgentsPage() {
   };
 
   const handleDeactivate = async (agent) => {
+    // Find all sessionIds belonging to this agent
+    const sids = Object.entries(sessionMap)
+      .filter(([, aid]) => aid === agent._id)
+      .map(([sid]) => sid);
+
     try {
-      const res = await fetch(`http://localhost:5000/runtime/agents/${agent._id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Failed to deactivate agent');
+      for (const sid of sids) {
+        const res = await fetch(`http://localhost:5000/runtime/agents/${sid}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || 'Failed to deactivate agent');
+        }
+        removeSession(sid);
       }
-      setRuntimeIds((prev) => prev.filter((id) => id !== agent._id));
+      setSessionMap((prev) => {
+        const next = { ...prev };
+        for (const sid of sids) delete next[sid];
+        return next;
+      });
     } catch (err) {
       alert(`Failed to deactivate agent: ${err.message}`);
     }
   };
 
   const handleRun = async (agent) => {
+    const sessionId = crypto.randomUUID();
     try {
       const filesRes = await fetch(`/api/agents/${agent._id}/files`);
       const files = await filesRes.json();
       const res = await fetch('http://localhost:5000/runtime/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent, files }),
+        body: JSON.stringify({ agent, files, sessionId }),
       });
       const data = await res.json();
       if (!res.ok) {
         setPopup({ message: data.message || data.error || 'Runtime server error', code: data.error, agent });
         return;
       }
-      navigate(`/chat/${agent._id}`, { state: { agent } });
+      // Register in the context store
+      createSession(agent._id, sessionId, agent.name);
+
+      setSessionMap((prev) => ({ ...prev, [sessionId]: agent._id }));
+      navigate(`/chat/${agent._id}/${sessionId}`, { state: { agent } });
     } catch (err) {
       setPopup({ message: `Failed to start agent: ${err.message}`, code: 'unknown', agent });
     }
+  };
+
+  const handleOpenChat = (agent, sessionId) => {
+    navigate(`/chat/${agent._id}/${sessionId}`, { state: { agent } });
   };
 
   const dismissPopup = () => {
@@ -201,8 +270,7 @@ function AgentsPage() {
         ) : (
           <div className="agents-grid">
             {agents.map((agent) => {
-              const isRunning = runtimeIds.includes(agent._id);
-              const statusLabel = isRunning ? 'Active' : agent.status;
+              const isRunning = Object.values(sessionMap).includes(agent._id);
               return (
               <div key={agent._id} className="agent-card">
                 <div className="agent-header">
@@ -225,6 +293,7 @@ function AgentsPage() {
                   <button className="agent-action-btn view-btn" onClick={() => handleRun(agent)}>
                     Run
                   </button>
+                  <OpenChatsButton agent={agent} onNavigate={handleOpenChat} />
                   <button className="agent-action-btn edit-btn" onClick={() => openEdit(agent)}>
                     Edit
                   </button>

@@ -44,6 +44,7 @@ interface AgentFile {
 interface RunRequest {
   agent: AgentData;
   files?: AgentFile[];
+  sessionId?: string;
 }
 
 interface OrchestratorRunRequest {
@@ -64,6 +65,9 @@ const activeOrchestrators = new Map<string, PiOrchestrator>();
 
 // Map of orchestratorId → sub-agent metadata (for the UI)
 const orchestratorSubAgents = new Map<string, AgentData[]>();
+
+// Map of sessionId → agentId (so we can look up which agent a session belongs to)
+const sessionAgentMap = new Map<string, string>();
 
 // Convenience pointer to the last agent that was run
 let currentAgentId: string | null = null;
@@ -102,7 +106,8 @@ function resolveModel(model: string): string {
  * `activeAgents`, and sets it as the global `activeAgent`.
  */
 app.post('/runtime/run', async (req, res) => {
-  const { agent, files = [] }: RunRequest = req.body;
+  const { agent, files = [], sessionId: clientSessionId }: RunRequest = req.body;
+  const sessionId = clientSessionId || agent?._id;
 
   if (!agent?._id || !agent?.model) {
     res.status(400).json({ error: 'Request body must include agent._id and agent.model' });
@@ -153,12 +158,13 @@ app.post('/runtime/run', async (req, res) => {
 
 
     // Store in map and as globals
-    activeAgents.set(agent._id, piAgent);
-    currentAgentId        = agent._id;
+    activeAgents.set(sessionId, piAgent);
+    sessionAgentMap.set(sessionId, agent._id);
+    currentAgentId        = sessionId;
     global.activeAgent    = piAgent;
-    global.activeAgentId  = agent._id;
+    global.activeAgentId  = sessionId;
 
-    console.log(`[runtime] Agent "${agent.name}" (${agent._id}) started`);
+    console.log(`[runtime] Agent "${agent.name}" session ${sessionId} (agent ${agent._id}) started`);
     console.log(`[runtime]   model          : ${config.model}`);
     console.log(`[runtime]   description    : ${agent.description}`);
     console.log(`[runtime]   sessionMode    : ${config.sessionMode}`);
@@ -188,9 +194,10 @@ app.post('/runtime/run', async (req, res) => {
     }
     console.log(`[runtime]   apiKey set     : ${piAgent.getConfig().hasApiKey}`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       agentId: agent._id,
+      sessionId,
       name: agent.name,
       model: config.model,
       sessionMode: config.sessionMode,
@@ -451,6 +458,30 @@ app.get('/runtime/agents/:id/config', (req, res) => {
 });
 
 /**
+ * GET /runtime/agents/:id/messages
+ *
+ * Returns the full conversation history for an active Pi agent session.
+ */
+app.get('/runtime/agents/:id/messages', async (req, res) => {
+  const { id } = req.params;
+  const piAgent = activeAgents.get(id);
+
+  if (!piAgent) {
+    res.status(404).json({ error: 'Agent not found in runtime.' });
+    return;
+  }
+
+  try {
+    const messages = await piAgent.getMessages();
+    res.json(messages);
+  } catch (err: any) {
+    res.status(503).json({
+      error: err?.message ?? 'No active session. Send a message to the agent first.',
+    });
+  }
+});
+
+/**
  * GET /runtime/agents/:id/stats
  *
  * Returns context usage and session statistics for an active Pi agent.
@@ -588,8 +619,13 @@ app.get('/runtime/orchestrator/:id/stats', (req, res) => {
  * Returns the list of active agent IDs and the current (last-run) agent ID.
  */
 app.get('/runtime/status', (_req, res) => {
+  const sessions: Record<string, string> = {};
+  for (const [sid, agentId] of sessionAgentMap) {
+    if (activeAgents.has(sid)) sessions[sid] = agentId;
+  }
   res.json({
     activeAgents: Array.from(activeAgents.keys()),
+    sessionAgentMap: sessions,
     currentAgentId,
   });
 });
@@ -606,6 +642,7 @@ app.delete('/runtime/agents/:id', (req, res) => {
     return;
   }
   activeAgents.delete(id);
+  sessionAgentMap.delete(id);
   if (activeOrchestrators.has(id)) {
     activeOrchestrators.delete(id);
     orchestratorSubAgents.delete(id);

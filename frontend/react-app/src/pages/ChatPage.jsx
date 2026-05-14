@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useAgentChat } from '../AgentChatContext';
 import SessionStatsPanel from '../components/SessionStatsPanel';
 import AgentConfigPanel from '../components/AgentConfigPanel';
 import SubAgentsPanel from '../components/SubAgentsPanel';
@@ -8,15 +9,19 @@ import ChatArea from '../components/ChatArea';
 import './ChatPage.css';
 
 function ChatPage() {
-  const { agentId } = useParams();
+  const { agentId, sessionId } = useParams();
   const { state } = useLocation();
   const navigate = useNavigate();
 
+  // Use sessionId if available, fall back to agentId for backward compat (orchestrators, old links)
+  const chatKey = sessionId || agentId;
+
+  // Chat state from the global context (survives navigation)
+  const { messages, streaming, error, sendMessage, abortAgent, hydrateFromServer } = useAgentChat(chatKey);
+
+  // Local UI state
   const [agent, setAgent] = useState(state?.agent || null);
-  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
-  const [error, setError] = useState(null);
   const [showStats, setShowStats] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showSubAgents, setShowSubAgents] = useState(false);
@@ -53,136 +58,27 @@ function ChatPage() {
     agentLoggedRef.current = true;
   }, [agent]);
 
+  // Hydrate messages from server if this session has an existing server-side conversation
+  useEffect(() => {
+    if (chatKey) hydrateFromServer();
+  }, [chatKey, hydrateFromServer]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const appendDelta = (text) => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.role === 'assistant' && last.streaming) {
-        return [...prev.slice(0, -1), { ...last, text: last.text + text }];
-      }
-      // First text delta after thinking — close any streaming thinking bubble.
-      const closed = prev.map((m) =>
-        m.role === 'thinking' && m.streaming ? { ...m, streaming: false } : m
-      );
-      return [...closed, { role: 'assistant', text, streaming: true, id: Date.now() }];
-    });
-  };
-
-  const appendThinkingDelta = (text) => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.role === 'thinking' && last.streaming) {
-        return [...prev.slice(0, -1), { ...last, text: last.text + text }];
-      }
-      const id = Date.now() + Math.random();
-      return [...prev, { role: 'thinking', text, streaming: true, id }];
-    });
-  };
-
-  const finalizeAssistant = () => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        (m.role === 'assistant' || m.role === 'thinking') && m.streaming
-          ? { ...m, streaming: false }
-          : m
-      )
-    );
-  };
-
-  const appendToolStart = (event) => {
-    setMessages((prev) => [
-      ...prev,
-      { role: 'tool', name: event.name, args: event.args, result: null, isError: false, done: false, id: Date.now() + Math.random() },
-    ]);
-  };
-
-  const appendToolEnd = (event) => {
-    setMessages((prev) => {
-      const idx = prev.findLastIndex((m) => m.role === 'tool' && !m.done);
-      if (idx === -1) return prev;
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], result: event.result, isError: event.isError, done: true };
-      return updated;
-    });
-  };
-
-  const sendMessage = async () => {
+  const handleSend = () => {
     const text = input.trim();
     if (!text || streaming) return;
-
     setInput('');
-    setError(null);
-    setMessages((prev) => [...prev, { role: 'user', text, id: Date.now() }]);
-    setStreaming(true);
-
-    try {
-      const res = await fetch(`http://localhost:5000/runtime/chat/${agentId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Server error ${res.status}`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-
-        const lines = buf.split('\n');
-        buf = lines.pop(); // keep incomplete line
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-          let evt;
-          try { evt = JSON.parse(raw); } catch { continue; }
-
-          if (evt.type === 'delta') appendDelta(evt.text);
-          else if (evt.type === 'thinking') appendThinkingDelta(evt.text);
-          else if (evt.type === 'tool_start') appendToolStart(evt);
-          else if (evt.type === 'tool_end') appendToolEnd(evt);
-          else if (evt.type === 'done') finalizeAssistant();
-          else if (evt.type === 'error') throw new Error(evt.message);
-        }
-      }
-      // Ensure cursor is removed even if the stream closed without a trailing
-      // newline (leaving the 'done' event unprocessed in buf) or without
-      // sending a 'done' event at all.
-      finalizeAssistant();
-    } catch (err) {
-      setError(err.message);
-      finalizeAssistant();
-    } finally {
-      setStreaming(false);
-      textareaRef.current?.focus();
-    }
-  };
-
-  const abortAgent = async () => {
-    try {
-      await fetch(`http://localhost:5000/runtime/agents/${agentId}/abort`, { method: 'POST' });
-    } catch {
-      // stream will close on its own or the error surface via SSE
-    }
+    sendMessage(text);
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSend();
     }
   };
 
@@ -257,7 +153,7 @@ function ChatPage() {
             input={input}
             onInputChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onSend={sendMessage}
+            onSend={handleSend}
             onAbort={abortAgent}
             bottomRef={bottomRef}
             textareaRef={textareaRef}
@@ -266,19 +162,19 @@ function ChatPage() {
 
         {showStats && (
           <SessionStatsPanel
-            agentId={agentId}
+            agentId={chatKey}
             onClose={() => setShowStats(false)}
           />
         )}
         {showConfig && (
           <AgentConfigPanel
-            agentId={agentId}
+            agentId={chatKey}
             onClose={() => setShowConfig(false)}
           />
         )}
         {showSubAgents && (
           <SubAgentsPanel
-            agentId={agentId}
+            agentId={chatKey}
             orchestratorId={agentId}
             onClose={() => setShowSubAgents(false)}
             onViewSubAgent={(view) => setSubAgentView(view)}

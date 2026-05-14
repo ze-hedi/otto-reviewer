@@ -319,6 +319,104 @@
   animation: fadeSlideIn 0.3s ease forwards;
 }
 
+/* ── Open Chats popup ──────────────────────────────────────────────────── */
+
+.chats-popup__box {
+  background: #161b27;
+  border: 1px solid #2a3350;
+  border-radius: 10px;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 0 0 3px rgba(124, 140, 248, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chats-popup__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-family: 'Courier New', monospace;
+}
+
+.chats-popup__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.chats-popup__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  background: #1e2637;
+  border: 1px solid #2a3350;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #e2e8f0;
+  font-size: 0.88rem;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.chats-popup__item:hover {
+  border-color: #7c8cf8;
+  background: rgba(124, 140, 248, 0.08);
+}
+
+.chats-popup__item-name {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.chats-popup__item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.chats-popup__streaming-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  animation: chats-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes chats-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.chats-popup__close {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid #2a3350;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chats-popup__close:hover {
+  border-color: #7c8cf8;
+  color: #7c8cf8;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
