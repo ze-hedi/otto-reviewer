@@ -134,11 +134,16 @@ def main() -> None:
         model = torch.compile(model)
 
     # ---- Optim ----
+    # 4.6: fused AdamW. PyTorch's fused kernel folds the elementwise
+    # moment updates into a single launch -- meaningful at 124M scale
+    # because there are hundreds of small param tensors.
+    fused_ok = device.startswith("cuda")
     optim = torch.optim.AdamW(
         model.parameters(),
         lr=cfg["optim"]["lr"],
         betas=tuple(cfg["optim"]["betas"]),
         weight_decay=cfg["optim"]["weight_decay"],
+        fused=fused_ok,
     )
 
     out_dir = Path(args.out_dir)
