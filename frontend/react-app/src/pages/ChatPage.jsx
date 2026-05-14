@@ -5,6 +5,7 @@ import SessionStatsPanel from '../components/SessionStatsPanel';
 import AgentConfigPanel from '../components/AgentConfigPanel';
 import SubAgentsPanel from '../components/SubAgentsPanel';
 import SubAgentSessionView from '../components/SubAgentSessionView';
+import CodeBrowser from '../components/CodeBrowser';
 import ChatArea from '../components/ChatArea';
 import './ChatPage.css';
 
@@ -25,6 +26,7 @@ function ChatPage() {
   const [showStats, setShowStats] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showSubAgents, setShowSubAgents] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const [subAgentView, setSubAgentView] = useState(null);
 
   const bottomRef = useRef(null);
@@ -106,14 +108,14 @@ function ChatPage() {
         <div className="chat-status-dot" title="Active" />
         <button
           className={`chat-stats-btn${showStats ? ' active' : ''}`}
-          onClick={() => { const next = !showStats; setShowStats(next); if (next) { setShowConfig(false); setShowSubAgents(false); } }}
+          onClick={() => { const next = !showStats; setShowStats(next); if (next) { setShowConfig(false); setShowSubAgents(false); setShowCode(false); } }}
           title="Toggle session stats"
         >
           ◈ Stats
         </button>
         <button
           className={`chat-stats-btn${showConfig ? ' active' : ''}`}
-          onClick={() => { const next = !showConfig; setShowConfig(next); if (next) { setShowStats(false); setShowSubAgents(false); } }}
+          onClick={() => { const next = !showConfig; setShowConfig(next); if (next) { setShowStats(false); setShowSubAgents(false); setShowCode(false); } }}
           title="Toggle agent config"
         >
           ⬡ Agent
@@ -121,12 +123,19 @@ function ChatPage() {
         {agent?.type === 'orchestrator' && (
           <button
             className={`chat-stats-btn${showSubAgents ? ' active' : ''}`}
-            onClick={() => { const next = !showSubAgents; setShowSubAgents(next); if (next) { setShowStats(false); setShowConfig(false); } }}
+            onClick={() => { const next = !showSubAgents; setShowSubAgents(next); if (next) { setShowStats(false); setShowConfig(false); setShowCode(false); } }}
             title="Toggle sub-agents"
           >
             ⊞ Sub-agents
           </button>
         )}
+        <button
+          className={`chat-stats-btn${showCode ? ' active' : ''}`}
+          onClick={() => { const next = !showCode; setShowCode(next); if (next) { setShowStats(false); setShowConfig(false); setShowSubAgents(false); } }}
+          title="Browse agent workspace files"
+        >
+          ⟨/⟩ Code
+        </button>
         <button
           className="chat-stats-btn"
           onClick={() => {
@@ -143,13 +152,16 @@ function ChatPage() {
       </div>
 
       <div className="chat-body">
-        {subAgentView && (
+        {showCode && (
+          <CodeBrowser agentId={chatKey} />
+        )}
+        {!showCode && subAgentView && (
           <SubAgentSessionView
             subAgentView={subAgentView}
             onBack={() => setSubAgentView(null)}
           />
         )}
-        {!subAgentView && (
+        {!showCode && !subAgentView && (
           <ChatArea
             messages={messages}
             streaming={streaming}
