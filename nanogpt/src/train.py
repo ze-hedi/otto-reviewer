@@ -123,6 +123,11 @@ def main() -> None:
     eval_iters = cfg["eval"]["eval_iters"]
     ckpt_interval = cfg["checkpoint"]["interval"]
 
+    # 4.2: bf16 autocast in the forward (loss stays fp32 inside CE).
+    dtype_name = cfg.get("runtime", {}).get("dtype", "float32")
+    autocast_dtype = {"float32": None, "bfloat16": torch.bfloat16, "float16": torch.float16}[dtype_name]
+    use_autocast = autocast_dtype is not None and device.startswith("cuda")
+
     t_prev = time.time()
     for step in range(max_steps):
         # LR
@@ -132,7 +137,11 @@ def main() -> None:
 
         # Step
         x, y = train_ds.get_batch()
-        _, loss = model(x, y)
+        if use_autocast:
+            with torch.autocast(device_type="cuda", dtype=autocast_dtype):
+                _, loss = model(x, y)
+        else:
+            _, loss = model(x, y)
         optim.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg["optim"]["grad_clip"])
