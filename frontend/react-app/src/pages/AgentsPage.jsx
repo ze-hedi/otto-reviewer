@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAgentSessions, createSession, removeSession } from '../AgentChatContext';
+import { useAgentSessions, createSession, removeSession, abortAgent } from '../AgentChatContext';
 import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
 import './AgentsPage.css';
 import '../components/AgentForm.css';
 
 // Small wrapper so we can call useAgentSessions per agent card
-function OpenChatsButton({ agent, onNavigate }) {
+function OpenChatsButton({ agent, onNavigate, onDeleteSession }) {
   const sessions = useAgentSessions(agent._id);
   const [showPopup, setShowPopup] = useState(false);
 
@@ -26,20 +26,31 @@ function OpenChatsButton({ agent, onNavigate }) {
             <p className="chats-popup__title">Active Chats — {agent.name}</p>
             <div className="chats-popup__list">
               {sessions.map((s, idx) => (
-                <button
-                  key={s.sessionId}
-                  className="chats-popup__item"
-                  onClick={() => {
-                    setShowPopup(false);
-                    onNavigate(agent, s.sessionId);
-                  }}
-                >
-                  <span className="chats-popup__item-name">Chat {idx + 1}</span>
-                  <span className="chats-popup__item-meta">
-                    {s.messageCount} messages
-                    {s.streaming && <span className="chats-popup__streaming-dot" />}
-                  </span>
-                </button>
+                <div key={s.sessionId} className="chats-popup__item-row">
+                  <button
+                    className="chats-popup__item"
+                    onClick={() => {
+                      setShowPopup(false);
+                      onNavigate(agent, s.sessionId);
+                    }}
+                  >
+                    <span className="chats-popup__item-name">Chat {idx + 1}</span>
+                    <span className="chats-popup__item-meta">
+                      {s.messageCount} messages
+                      {s.streaming && <span className="chats-popup__streaming-dot" />}
+                    </span>
+                  </button>
+                  <button
+                    className="chats-popup__delete-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSession(s.sessionId);
+                    }}
+                    title="Close this session"
+                  >
+                    x
+                  </button>
+                </div>
               ))}
             </div>
             <button className="chats-popup__close" onClick={() => setShowPopup(false)}>
@@ -170,6 +181,25 @@ function AgentsPage() {
     navigate(`/chat/${agent._id}/${sessionId}`, { state: { agent } });
   };
 
+  const handleDeleteSession = async (sessionId) => {
+    try {
+      await abortAgent(sessionId);
+      const res = await fetch(`http://localhost:5000/runtime/agents/${sessionId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to close session');
+      }
+      removeSession(sessionId);
+      setSessionMap((prev) => {
+        const next = { ...prev };
+        delete next[sessionId];
+        return next;
+      });
+    } catch (err) {
+      alert(`Failed to close session: ${err.message}`);
+    }
+  };
+
   const dismissPopup = () => {
     setPopup(null);
     setApiKeyInput('');
@@ -293,7 +323,7 @@ function AgentsPage() {
                   <button className="agent-action-btn view-btn" onClick={() => handleRun(agent)}>
                     Run
                   </button>
-                  <OpenChatsButton agent={agent} onNavigate={handleOpenChat} />
+                  <OpenChatsButton agent={agent} onNavigate={handleOpenChat} onDeleteSession={handleDeleteSession} />
                   <button className="agent-action-btn edit-btn" onClick={() => openEdit(agent)}>
                     Edit
                   </button>

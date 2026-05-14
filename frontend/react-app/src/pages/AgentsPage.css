@@ -399,6 +399,36 @@
   50% { opacity: 0.4; }
 }
 
+.chats-popup__item-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.chats-popup__item-row .chats-popup__item {
+  flex: 1;
+}
+
+.chats-popup__delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex-shrink: 0;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chats-popup__delete-btn:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: #f87171;
+}
+
 .chats-popup__close {
   align-self: flex-end;
   margin-top: 0.25rem;
