@@ -73,6 +73,11 @@ def main() -> None:
     np.random.seed(args.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # 4.1: TF32 matmuls on Ampere+. Free ~2x speedup on fp32 matmuls with
+    # negligible numerical impact for transformer training.
+    if cfg.get("runtime", {}).get("tf32", True):
+        torch.set_float32_matmul_precision("high")
+
     # ---- Data ----
     data_kind = cfg.get("data", {}).get("kind", "shakespeare_char")
     if data_kind == "shakespeare_char":
