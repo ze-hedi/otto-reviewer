@@ -31,6 +31,7 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from data import ShardLoader
+from eval_hellaswag import evaluate as eval_hellaswag
 from model import GPT, GPTConfig
 from utils import (
     DistInfo,
@@ -293,6 +294,14 @@ def main() -> None:
             if info.is_main:
                 print(f"  val loss: {float(v):.4f}")
                 logger.log(step=step, val_loss=float(v))
+
+        hella_interval = cfg["eval"].get("hellaswag_interval", 0)
+        if hella_interval and step > 0 and step % hella_interval == 0 and info.is_main:
+            model.eval()
+            acc = eval_hellaswag(raw_model, device, split="val", limit=1000)
+            model.train()
+            print(f"  hellaswag (1k subset): {acc:.4f}")
+            logger.log(step=step, hellaswag_val=acc)
 
         if ckpt_interval and step > 0 and step % ckpt_interval == 0 and info.is_main:
             save_checkpoint(out_dir / "ckpt.pt", raw_model, optim, step, cfg,
