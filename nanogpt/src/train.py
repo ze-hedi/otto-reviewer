@@ -78,6 +78,17 @@ def main() -> None:
     if cfg.get("runtime", {}).get("tf32", True):
         torch.set_float32_matmul_precision("high")
 
+    # 4.4: Make sure SDPA dispatches to FlashAttention2 when we're on bf16
+    # on a supported GPU. The bias-buffer-less attention in model.py is
+    # what makes flash usable; this just enables and logs the backend.
+    if device.startswith("cuda"):
+        try:
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            torch.backends.cuda.enable_math_sdp(True)
+        except AttributeError:
+            pass  # older torch -- SDPA picks the backend itself.
+
     # ---- Data ----
     data_kind = cfg.get("data", {}).get("kind", "shakespeare_char")
     if data_kind == "shakespeare_char":
