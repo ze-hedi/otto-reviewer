@@ -38,3 +38,6 @@ eval:
 
 checkpoint:
   interval: 1000
+
+data:
+  kind: fineweb_edu

@@ -30,6 +30,7 @@ import torch.distributed as dist
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from data import ShardLoader
 from model import GPT, GPTConfig
 from utils import (
     DistInfo,
@@ -131,13 +132,12 @@ def main() -> None:
             pass
 
     # ---- Data ----
-    data_kind = cfg.get("data", {}).get("kind", "shakespeare_char")
+    data_kind = cfg.get("data", {}).get("kind", "fineweb_edu")
     if data_kind == "shakespeare_char":
         ddir = Path(args.data_dir) / "shakespeare_char"
         with (ddir / "meta.pkl").open("rb") as f:
             meta = pickle.load(f)
         cfg["model"]["vocab_size"] = max(cfg["model"]["vocab_size"], meta["vocab_size"])
-        # Rank-aware seed so ranks see independent shuffles.
         seed_t = args.seed * 2 + info.rank
         seed_v = args.seed * 2 + 1 + info.rank
         train_ds = BinDataset(ddir / "train.bin", cfg["batch"]["seq_len"],
@@ -145,6 +145,21 @@ def main() -> None:
         val_ds = BinDataset(ddir / "val.bin", cfg["batch"]["seq_len"],
                             cfg["batch"]["micro_batch_size"], device, seed_v)
         ckpt_meta = {"tokenizer": "char", "stoi": meta["stoi"], "itos": meta["itos"]}
+        get_train_batch = train_ds.get_batch
+        get_val_batch = val_ds.get_batch
+    elif data_kind == "fineweb_edu":
+        ddir = Path(args.data_dir) / "fineweb_edu"
+        train_loader = ShardLoader(ddir, "train",
+                                   cfg["batch"]["micro_batch_size"],
+                                   cfg["batch"]["seq_len"],
+                                   info.rank, info.world_size, device)
+        val_loader = ShardLoader(ddir, "val",
+                                 cfg["batch"]["micro_batch_size"],
+                                 cfg["batch"]["seq_len"],
+                                 info.rank, info.world_size, device)
+        ckpt_meta = {"tokenizer": "gpt2"}
+        get_train_batch = train_loader.next_batch
+        get_val_batch = val_loader.next_batch
     else:
         sys.exit(f"unknown data.kind: {data_kind}")
 
@@ -238,7 +253,7 @@ def main() -> None:
         optim.zero_grad(set_to_none=True)
         loss_accum = 0.0
         for micro in range(grad_accum):
-            x, y = train_ds.get_batch()
+            x, y = get_train_batch()
             # 4.8 DDP: only sync on the last micro-step of the accumulation
             # window. Saves grad_accum-1 all-reduces per optim step.
             if info.is_ddp:
@@ -268,7 +283,7 @@ def main() -> None:
             with torch.no_grad():
                 losses = []
                 for _ in range(eval_iters):
-                    xv, yv = val_ds.get_batch()
+                    xv, yv = get_val_batch()
                     _, vloss = model(xv, yv)
                     losses.append(vloss.detach())
                 v = torch.stack(losses).mean()
