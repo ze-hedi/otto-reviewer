@@ -25,8 +25,9 @@ function App() {
           <Route path="/tools" element={<ToolsPage />} />
           <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
           <Route path="/orchestrators" element={<OrchestratorPage />} />
-          <Route path="/dashboard/:orchestratorId" element={<DashboardPage />} />
           <Route path="/dashboard/:agentId/:sessionId" element={<AgentDashboardPage />} />
+          <Route path="/orch-dashboard/:orchestratorId/:sessionId" element={<DashboardPage />} />
+          <Route path="/orch-dashboard/:orchestratorId" element={<DashboardPage />} />
         </Routes>
       </AgentChatProvider>
     </BrowserRouter>

@@ -85,7 +85,8 @@ function AgentNameCard({ name }) {
 }
 
 function DashboardPage() {
-  const { orchestratorId } = useParams();
+  const { orchestratorId, sessionId } = useParams();
+  const statsKey = sessionId || orchestratorId;
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
@@ -96,7 +97,7 @@ function DashboardPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`http://localhost:5000/runtime/orchestrator/${orchestratorId}/stats`);
+      const res = await fetch(`http://localhost:5000/runtime/orchestrator/${statsKey}/stats`);
       const json = await res.json();
       if (!res.ok) {
         setError(json.error || `Server error ${res.status}`);
@@ -111,7 +112,7 @@ function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [orchestratorId]);
+  }, [statsKey]);
 
   // Initial fetch
   useEffect(() => {
@@ -136,7 +137,7 @@ function DashboardPage() {
     <div className="dash-page">
       {/* Header */}
       <div className="dash-header">
-        <button className="dash-back-btn" onClick={() => navigate(`/chat/${orchestratorId}`)}>
+        <button className="dash-back-btn" onClick={() => navigate(sessionId ? `/chat/${orchestratorId}/${sessionId}` : `/chat/${orchestratorId}`)}>
           ← Chat
         </button>
         <span className="dash-title">Dashboard</span>

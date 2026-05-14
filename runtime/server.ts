@@ -49,6 +49,7 @@ interface RunRequest {
 
 interface OrchestratorRunRequest {
   orchestratorId: string;
+  sessionId?: string;
   systemPrompt: string;
   model?: string;
   playground?: string;
@@ -221,7 +222,8 @@ app.post('/runtime/run', async (req, res) => {
  * also stored in activeAgents so existing chat/abort/stats endpoints work.
  */
 app.post('/runtime/orchestrator/run', async (req, res) => {
-  const { orchestratorId, systemPrompt, model, playground, agents }: OrchestratorRunRequest = req.body;
+  const { orchestratorId, sessionId: clientSessionId, systemPrompt, model, playground, agents }: OrchestratorRunRequest = req.body;
+  const sessionId = clientSessionId || orchestratorId;
 
   if (!orchestratorId) {
     res.status(400).json({ error: 'orchestratorId is required' });
@@ -267,10 +269,10 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
       };
 
       const piAgent = new PiAgent(config);
-      activeAgents.set(agent._id, piAgent);
+      activeAgents.set(`${sessionId}::${agent._id}`, piAgent);
       subAgentEntries.push({ agentData: agent, piAgent });
 
-      console.log(`[runtime] Sub-agent "${agent.name}" (${agent._id}) created`);
+      console.log(`[runtime] Sub-agent "${agent.name}" (${sessionId}::${agent._id}) created`);
     }
 
     // Create orchestrator
@@ -294,21 +296,23 @@ app.post('/runtime/orchestrator/run', async (req, res) => {
 
     orchestrator.initialize();
 
-    // Store orchestrator and its underlying PiAgent
-    activeOrchestrators.set(orchestratorId, orchestrator);
-    orchestratorSubAgents.set(orchestratorId, agents);
-    activeAgents.set(orchestratorId, orchestrator.getOrchestrator());
-    currentAgentId = orchestratorId;
+    // Store orchestrator and its underlying PiAgent (keyed by sessionId)
+    activeOrchestrators.set(sessionId, orchestrator);
+    orchestratorSubAgents.set(sessionId, agents);
+    activeAgents.set(sessionId, orchestrator.getOrchestrator());
+    sessionAgentMap.set(sessionId, orchestratorId);
+    currentAgentId = sessionId;
     global.activeAgent = orchestrator.getOrchestrator();
-    global.activeAgentId = orchestratorId;
+    global.activeAgentId = sessionId;
 
-    console.log(`[runtime] Orchestrator "${orchestratorId}" created with ${agents.length} sub-agent(s)`);
+    console.log(`[runtime] Orchestrator session ${sessionId} (def ${orchestratorId}) created with ${agents.length} sub-agent(s)`);
     console.log(`[runtime]   model: ${resolveModel(model || 'claude-sonnet-4-6')}`);
     console.log(`[runtime]   sub-agents: ${agents.map((a) => a.name).join(', ')}`);
 
     res.json({
       success: true,
       orchestratorId,
+      sessionId,
       model: resolveModel(model || 'claude-sonnet-4-6'),
       subAgents: agents.map((a) => a.name),
     });
@@ -345,7 +349,7 @@ app.get('/runtime/orchestrator/:orchId/subagent/:agentId/messages', async (req, 
     res.status(404).json({ error: 'Orchestrator not found' });
     return;
   }
-  const agent = activeAgents.get(agentId);
+  const agent = activeAgents.get(`${orchId}::${agentId}`);
   if (!agent) {
     res.status(404).json({ error: 'Sub-agent not found' });
     return;
@@ -574,7 +578,7 @@ app.get('/runtime/orchestrator/:id/stats', (req, res) => {
     };
 
     if (agentData.stateful) {
-      const piAgent = activeAgents.get(agentData._id);
+      const piAgent = activeAgents.get(`${id}::${agentData._id}`);
       if (piAgent) {
         try {
           entry.contextUsage = piAgent.getContextUsage();
@@ -645,9 +649,16 @@ app.delete('/runtime/agents/:id', (req, res) => {
   activeAgents.delete(id);
   sessionAgentMap.delete(id);
   if (activeOrchestrators.has(id)) {
+    // Clean up sub-agent composite keys
+    const subAgents = orchestratorSubAgents.get(id);
+    if (subAgents) {
+      for (const agent of subAgents) {
+        activeAgents.delete(`${id}::${agent._id}`);
+      }
+    }
     activeOrchestrators.delete(id);
     orchestratorSubAgents.delete(id);
-    console.log(`[runtime] Orchestrator ${id} removed`);
+    console.log(`[runtime] Orchestrator session ${id} removed`);
   }
   if (currentAgentId === id) {
     currentAgentId       = null;

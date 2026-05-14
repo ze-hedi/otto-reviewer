@@ -94,8 +94,8 @@ function ChatPage() {
     <div className="chat-page">
       {/* Header */}
       <div className="chat-header">
-        <button className="chat-back-btn" onClick={() => navigate('/agents')}>
-          ← Agents
+        <button className="chat-back-btn" onClick={() => navigate(agent?.type === 'orchestrator' ? '/orchestrators' : '/agents')}>
+          ← {agent?.type === 'orchestrator' ? 'Orchestrators' : 'Agents'}
         </button>
         <div className="chat-agent-info">
           <span className="chat-agent-name">{agent?.name ?? 'Agent'}</span>
@@ -131,7 +131,7 @@ function ChatPage() {
           className="chat-stats-btn"
           onClick={() => {
             if (agent?.type === 'orchestrator') {
-              navigate(`/dashboard/${agentId}`);
+              navigate(`/orch-dashboard/${agentId}/${chatKey}`);
             } else {
               navigate(`/dashboard/${agentId}/${chatKey}`);
             }
@@ -179,7 +179,7 @@ function ChatPage() {
         {showSubAgents && (
           <SubAgentsPanel
             agentId={chatKey}
-            orchestratorId={agentId}
+            orchestratorId={chatKey}
             onClose={() => setShowSubAgents(false)}
             onViewSubAgent={(view) => setSubAgentView(view)}
           />
