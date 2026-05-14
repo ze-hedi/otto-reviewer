@@ -481,6 +481,108 @@ app.get('/runtime/agents/:id/stats', (req, res) => {
 });
 
 /**
+ * GET /runtime/orchestrator/:id/stats
+ *
+ * Returns stats for the orchestrator and all its stateful sub-agents,
+ * plus aggregated totals across all agents.
+ */
+app.get('/runtime/orchestrator/:id/stats', (req, res) => {
+  const { id } = req.params;
+
+  const orchestratorAgent = activeAgents.get(id);
+  if (!orchestratorAgent) {
+    res.status(404).json({ error: 'Orchestrator not found in runtime.' });
+    return;
+  }
+
+  const subAgentsData = orchestratorSubAgents.get(id);
+  if (!subAgentsData) {
+    res.status(404).json({ error: 'Not an orchestrator or no sub-agents registered.' });
+    return;
+  }
+
+  // Orchestrator stats
+  let orchestratorStats: any = { name: 'Orchestrator', contextUsage: null, sessionStats: null };
+  try {
+    orchestratorStats.contextUsage = orchestratorAgent.getContextUsage();
+    orchestratorStats.sessionStats = orchestratorAgent.getSessionStats();
+  } catch {
+    // No active session yet
+  }
+
+  // Sub-agent stats
+  const subAgents: any[] = [];
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheRead = 0;
+  let totalCacheWrite = 0;
+  let totalTokens = 0;
+  let totalCost = 0;
+  let totalToolCalls = 0;
+
+  // Include orchestrator in totals
+  if (orchestratorStats.sessionStats) {
+    const s = orchestratorStats.sessionStats;
+    totalInputTokens += s.tokens?.input || 0;
+    totalOutputTokens += s.tokens?.output || 0;
+    totalCacheRead += s.tokens?.cacheRead || 0;
+    totalCacheWrite += s.tokens?.cacheWrite || 0;
+    totalTokens += s.tokens?.total || 0;
+    totalCost += s.cost || 0;
+    totalToolCalls += s.toolCalls || 0;
+  }
+
+  for (const agentData of subAgentsData) {
+    const entry: any = {
+      id: agentData._id,
+      name: agentData.name,
+      stateful: agentData.stateful ?? false,
+      contextUsage: null,
+      sessionStats: null,
+    };
+
+    if (agentData.stateful) {
+      const piAgent = activeAgents.get(agentData._id);
+      if (piAgent) {
+        try {
+          entry.contextUsage = piAgent.getContextUsage();
+          entry.sessionStats = piAgent.getSessionStats();
+
+          const s = entry.sessionStats;
+          if (s) {
+            totalInputTokens += s.tokens?.input || 0;
+            totalOutputTokens += s.tokens?.output || 0;
+            totalCacheRead += s.tokens?.cacheRead || 0;
+            totalCacheWrite += s.tokens?.cacheWrite || 0;
+            totalTokens += s.tokens?.total || 0;
+            totalCost += s.cost || 0;
+            totalToolCalls += s.toolCalls || 0;
+          }
+        } catch {
+          // No active session yet for this sub-agent
+        }
+      }
+    }
+
+    subAgents.push(entry);
+  }
+
+  res.json({
+    orchestrator: orchestratorStats,
+    subAgents,
+    totals: {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      cacheRead: totalCacheRead,
+      cacheWrite: totalCacheWrite,
+      totalTokens,
+      totalCost,
+      totalToolCalls,
+    },
+  });
+});
+
+/**
  * GET /runtime/status
  *
  * Returns the list of active agent IDs and the current (last-run) agent ID.

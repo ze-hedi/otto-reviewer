@@ -7,6 +7,7 @@ import AgentsPage from './pages/AgentsPage';
 import ToolsPage from './pages/ToolsPage';
 import TeamOfAgentsPage from './pages/TeamOfAgentsPage';
 import OrchestratorPage from './pages/OrchestratorPage';
+import DashboardPage from './pages/DashboardPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/team-of-agents" element={<TeamOfAgentsPage />} />
         <Route path="/orchestrators" element={<OrchestratorPage />} />
+        <Route path="/dashboard/:orchestratorId" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>
   );
