@@ -31,7 +31,36 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from model import GPT, GPTConfig
-from utils import DistInfo, JsonlLogger, cleanup_distributed, init_distributed, save_checkpoint
+from utils import (
+    DistInfo,
+    JsonlLogger,
+    cleanup_distributed,
+    init_distributed,
+    load_checkpoint,
+    save_checkpoint,
+)
+
+
+def configure_optimizer(model: torch.nn.Module, *, lr: float, betas: tuple[float, float],
+                        weight_decay: float, fused: bool) -> torch.optim.AdamW:
+    """AdamW with two param groups: decay on 2D+ tensors, no decay on the rest.
+
+    Matches GPT-3 / GPT-2 reproduction practice: only matmuls/embeddings get
+    weight decay; LayerNorm gain/bias and any nn.Linear bias have decay 0.
+    """
+    decay, no_decay = [], []
+    for _, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if p.dim() >= 2:
+            decay.append(p)
+        else:
+            no_decay.append(p)
+    groups = [
+        {"params": decay, "weight_decay": weight_decay},
+        {"params": no_decay, "weight_decay": 0.0},
+    ]
+    return torch.optim.AdamW(groups, lr=lr, betas=betas, fused=fused)
 
 
 def lr_at(step: int, cfg: dict) -> float:
@@ -74,6 +103,8 @@ def main() -> None:
     p.add_argument("--out-dir", type=str, default=os.environ.get("OUT_DIR", "./out"))
     p.add_argument("--dry-run", action="store_true",
                    help="run 2 steps and exit (smoke test)")
+    p.add_argument("--resume", action="store_true",
+                   help="resume from $OUT_DIR/ckpt.pt if present")
     p.add_argument("--seed", type=int, default=1337)
     args = p.parse_args()
 
@@ -151,15 +182,27 @@ def main() -> None:
     else:
         model = raw_model
 
-    # 4.6 fused AdamW
+    # 4.6 fused AdamW + 5: decoupled weight-decay param groups.
     fused_ok = device.startswith("cuda")
-    optim = torch.optim.AdamW(
-        raw_model.parameters(),
+    optim = configure_optimizer(
+        raw_model,
         lr=cfg["optim"]["lr"],
         betas=tuple(cfg["optim"]["betas"]),
         weight_decay=cfg["optim"]["weight_decay"],
         fused=fused_ok,
     )
+
+    # 5: resume from latest checkpoint if --resume points at one.
+    start_step = 0
+    resume_path = Path(args.out_dir) / "ckpt.pt"
+    if args.resume and resume_path.exists():
+        if info.is_main:
+            print(f"resuming from {resume_path}")
+        ckpt = load_checkpoint(resume_path, map_location=device)
+        sd = {k.removeprefix("_orig_mod."): v for k, v in ckpt["model"].items()}
+        raw_model.load_state_dict(sd)
+        optim.load_state_dict(ckpt["optim"])
+        start_step = int(ckpt["step"]) + 1
 
     out_dir = Path(args.out_dir)
     if info.is_main:
@@ -187,7 +230,7 @@ def main() -> None:
     use_autocast = autocast_dtype is not None and device.startswith("cuda")
 
     t_prev = time.time()
-    for step in range(max_steps):
+    for step in range(start_step, max_steps):
         lr = lr_at(step, cfg["optim"])
         for g in optim.param_groups:
             g["lr"] = lr
