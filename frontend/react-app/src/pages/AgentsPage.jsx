@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAgentSessions, createSession, removeSession, abortAgent } from '../AgentChatContext';
 import PiAgentFormContainer from '../components/agents/PiAgentFormContainer';
+import MemoryAgentFormContainer from '../components/agents/MemoryAgentFormContainer';
+import AgentTypeSelector from '../components/agents/AgentTypeSelector';
 import './AgentsPage.css';
 import '../components/AgentForm.css';
 
@@ -69,7 +71,8 @@ function AgentsPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [sessionMap, setSessionMap] = useState({}); // sessionId → agentId
-  const [showFlow, setShowFlow]           = useState(false);
+  // flowStep: null | 'pick-type' | 'coding-form' | 'memory-form'
+  const [flowStep, setFlowStep]           = useState(null);
   const [editingAgent, setEditingAgent]   = useState(null);
   const [popup, setPopup]                 = useState(null); // { message, code, agent }
   const [apiKeyInput, setApiKeyInput]     = useState('');
@@ -78,10 +81,15 @@ function AgentsPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/agents').then((r) => r.json()),
+      fetch('/api/memory-agents').then((r) => r.json()),
       fetch('http://localhost:5000/runtime/status').then((r) => r.json()).catch(() => ({ activeAgents: [] })),
     ])
-      .then(([piAgents, runtimeStatus]) => {
-        setAgents(piAgents);
+      .then(([codingAgents, memoryAgents, runtimeStatus]) => {
+        const tagged = [
+          ...codingAgents.map((a) => ({ ...a, _agentKind: 'coding' })),
+          ...memoryAgents.map((a) => ({ ...a, _agentKind: 'memory' })),
+        ];
+        setAgents(tagged);
         setSessionMap(runtimeStatus.sessionAgentMap ?? {});
         setLoading(false);
       })
@@ -92,29 +100,32 @@ function AgentsPage() {
   }, []);
 
   const resetFlow = () => {
-    setShowFlow(false);
+    setFlowStep(null);
     setEditingAgent(null);
   };
 
-  const handleCreated = (agent) => {
-    setAgents((prev) => [...prev, agent]);
+  const handleCreated = (agent, kind) => {
+    setAgents((prev) => [...prev, { ...agent, _agentKind: kind }]);
     resetFlow();
   };
 
-  const handleUpdated = (agent) => {
-    setAgents((prev) => prev.map((a) => (a._id === agent._id ? agent : a)));
+  const handleUpdated = (agent, kind) => {
+    setAgents((prev) => prev.map((a) => (a._id === agent._id ? { ...agent, _agentKind: kind } : a)));
     resetFlow();
   };
 
   const openEdit = (agent) => {
     setEditingAgent(agent);
-    setShowFlow(true);
+    setFlowStep(agent._agentKind === 'memory' ? 'memory-form' : 'coding-form');
   };
 
   const handleDelete = async (agent) => {
     if (!window.confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
+    const endpoint = agent._agentKind === 'memory'
+      ? `/api/memory-agents/${agent._id}`
+      : `/api/agents/${agent._id}`;
     try {
-      const res = await fetch(`/api/agents/${agent._id}`, { method: 'DELETE' });
+      const res = await fetch(endpoint, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to delete agent');
@@ -245,6 +256,39 @@ function AgentsPage() {
     </div>
   );
 
+  // Render the current flow step
+  const renderFlow = () => {
+    switch (flowStep) {
+      case 'pick-type':
+        return (
+          <AgentTypeSelector
+            onSelect={(type) => setFlowStep(type === 'memory' ? 'memory-form' : 'coding-form')}
+            onCancel={resetFlow}
+          />
+        );
+      case 'coding-form':
+        return (
+          <PiAgentFormContainer
+            editingAgent={editingAgent}
+            onCreated={(agent) => handleCreated(agent, 'coding')}
+            onUpdated={(agent) => handleUpdated(agent, 'coding')}
+            onCancel={resetFlow}
+          />
+        );
+      case 'memory-form':
+        return (
+          <MemoryAgentFormContainer
+            editingAgent={editingAgent}
+            onCreated={(agent) => handleCreated(agent, 'memory')}
+            onUpdated={(agent) => handleUpdated(agent, 'memory')}
+            onCancel={resetFlow}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="agents-container">
       {popup && (
@@ -278,34 +322,32 @@ function AgentsPage() {
         </div>
       )}
       <div className="agents-content">
-        <div className={`agents-header-row${showFlow ? ' agents-header-row--centered' : ''}`}>
+        <div className={`agents-header-row${flowStep ? ' agents-header-row--centered' : ''}`}>
           <div>
             <h1>Agents</h1>
             <p className="agents-subtitle">Manage your AI agents</p>
           </div>
-          {!showFlow && (
-            <button className="add-agent-btn" onClick={() => setShowFlow(true)}>
+          {!flowStep && (
+            <button className="add-agent-btn" onClick={() => setFlowStep('pick-type')}>
               + Add Agent
             </button>
           )}
         </div>
 
-        {showFlow ? (
-          <PiAgentFormContainer
-            editingAgent={editingAgent}
-            onCreated={handleCreated}
-            onUpdated={handleUpdated}
-            onCancel={resetFlow}
-          />
+        {flowStep ? (
+          renderFlow()
         ) : (
           <div className="agents-grid">
             {agents.map((agent) => {
+              const isMemory = agent._agentKind === 'memory';
               const isRunning = Object.values(sessionMap).includes(agent._id);
               return (
               <div key={agent._id} className="agent-card">
                 <div className="agent-header">
                   <h3 className="agent-name">{agent.icon} {agent.name}</h3>
-                  {isRunning ? (
+                  {isMemory ? (
+                    <span className="agent-status agent-status--memory">Memory</span>
+                  ) : isRunning ? (
                     <button
                       className="agent-status active clickable"
                       onClick={() => handleDeactivate(agent)}
@@ -320,10 +362,14 @@ function AgentsPage() {
                 </div>
                 <p className="agent-description">{agent.description}</p>
                 <div className="agent-actions">
-                  <button className="agent-action-btn view-btn" onClick={() => handleRun(agent)}>
-                    Run
-                  </button>
-                  <OpenChatsButton agent={agent} onNavigate={handleOpenChat} onDeleteSession={handleDeleteSession} />
+                  {!isMemory && (
+                    <>
+                      <button className="agent-action-btn view-btn" onClick={() => handleRun(agent)}>
+                        Run
+                      </button>
+                      <OpenChatsButton agent={agent} onNavigate={handleOpenChat} onDeleteSession={handleDeleteSession} />
+                    </>
+                  )}
                   <button className="agent-action-btn edit-btn" onClick={() => openEdit(agent)}>
                     Edit
                   </button>

@@ -7,6 +7,7 @@ const ToolSchema = require('./models/ToolSchema');
 const Interface = require('./models/Interface');
 const MultiAgentPattern = require('./models/MultiAgentPattern');
 const Orchestrator = require('./models/Orchestrator');
+const MemoryAgent = require('./models/MemoryAgent');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -114,6 +115,71 @@ app.delete('/api/agents/:id', async (req, res) => {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     await AgentFile.deleteMany({ agent_id: agent._id });
     res.json({ message: 'Agent deleted successfully', agent });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Memory Agent endpoints
+
+app.get('/api/memory-agents', async (req, res) => {
+  try {
+    const agents = await MemoryAgent.find().sort({ createdAt: 1 });
+    res.json(agents);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/memory-agents', async (req, res) => {
+  try {
+    const {
+      name, description, icon, model,
+      embedModel, ollamaBaseUrl, collectionName,
+      qdrantUrl, qdrantApiKey, customInstructions, apiKey
+    } = req.body;
+
+    const agent = await MemoryAgent.create({
+      name, description, icon, model,
+      embedModel, ollamaBaseUrl, collectionName,
+      qdrantUrl, qdrantApiKey, customInstructions, apiKey
+    });
+
+    res.status(201).json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/memory-agents/:id', async (req, res) => {
+  try {
+    const {
+      name, description, icon, model,
+      embedModel, ollamaBaseUrl, collectionName,
+      qdrantUrl, qdrantApiKey, customInstructions, apiKey
+    } = req.body;
+
+    const agent = await MemoryAgent.findByIdAndUpdate(
+      req.params.id,
+      {
+        name, description, icon, model,
+        embedModel, ollamaBaseUrl, collectionName,
+        qdrantUrl, qdrantApiKey, customInstructions, apiKey
+      },
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!agent) return res.status(404).json({ error: 'Memory agent not found' });
+    res.json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/memory-agents/:id', async (req, res) => {
+  try {
+    const agent = await MemoryAgent.findByIdAndDelete(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Memory agent not found' });
+    res.json({ message: 'Memory agent deleted successfully', agent });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
