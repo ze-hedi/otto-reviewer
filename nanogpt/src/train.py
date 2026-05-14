@@ -114,8 +114,18 @@ def main() -> None:
         dropout=cfg["model"]["dropout"],
         bias=cfg["model"]["bias"],
     )
+    # 4.5: "Nice numbers" -- pad vocab to a multiple of 128 so the final
+    # lm_head matmul keeps tensor cores fully fed. GPT-2 BPE has 50257
+    # tokens; we round up to 50304. The extra rows never receive gradient
+    # because they never appear as targets.
+    pad = 128
+    if gptcfg.vocab_size % pad != 0:
+        new_vs = ((gptcfg.vocab_size + pad - 1) // pad) * pad
+        print(f"padding vocab_size {gptcfg.vocab_size} -> {new_vs} for tensor-core alignment")
+        gptcfg = GPTConfig(**{**gptcfg.__dict__, "vocab_size": new_vs})
+
     model = GPT(gptcfg).to(device)
-    print(f"model: {model.num_params():,} params")
+    print(f"model: {model.num_params():,} params (vocab_size={gptcfg.vocab_size})")
 
     # 4.3: torch.compile. Big speedup from kernel fusion + reduced Python
     # overhead. Save/load handle the resulting _orig_mod. prefix.
