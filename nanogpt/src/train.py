@@ -106,6 +106,12 @@ def main() -> None:
     model = GPT(gptcfg).to(device)
     print(f"model: {model.num_params():,} params")
 
+    # 4.3: torch.compile. Big speedup from kernel fusion + reduced Python
+    # overhead. Save/load handle the resulting _orig_mod. prefix.
+    if cfg.get("runtime", {}).get("compile", False) and device.startswith("cuda"):
+        print("compiling model ...")
+        model = torch.compile(model)
+
     # ---- Optim ----
     optim = torch.optim.AdamW(
         model.parameters(),
