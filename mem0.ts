@@ -22,8 +22,12 @@ export interface Mem0Config {
   ollamaBaseUrl?: string;
   /** SQLite history db path (default: "memory.db") */
   historyDbPath?: string;
-  /** In-memory vector store collection name (default: "memories") */
+  /** Qdrant collection name (default: "memories") */
   collectionName?: string;
+  /** Qdrant URL (default: process.env.QDRANT_URL ?? "http://localhost:6333") */
+  qdrantUrl?: string;
+  /** Qdrant API key for managed/cloud deployments (default: process.env.QDRANT_API_KEY) */
+  qdrantApiKey?: string;
   /** Custom instructions injected into the memory extraction prompt */
   customInstructions?: string;
 }
@@ -99,9 +103,14 @@ export class Mem0 {
         },
       },
       vectorStore: {
-        provider: "memory",
+        provider: "qdrant",
         config: {
+          url: config.qdrantUrl ?? process.env.QDRANT_URL ,
+          ...(config.qdrantApiKey ?? process.env.QDRANT_API_KEY
+            ? { apiKey: config.qdrantApiKey ?? process.env.QDRANT_API_KEY }
+            : {}),
           collectionName: config.collectionName ?? "memories",
+          embeddingModelDims: 384,
           dimension: 384,
         },
       },
