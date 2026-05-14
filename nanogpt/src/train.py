@@ -107,6 +107,10 @@ def main() -> None:
                    help="run 2 steps and exit (smoke test)")
     p.add_argument("--resume", action="store_true",
                    help="resume from $OUT_DIR/ckpt.pt if present")
+    p.add_argument("--wandb", action="store_true",
+                   help="also log to Weights & Biases (requires wandb installed)")
+    p.add_argument("--wandb-project", type=str, default="nanogpt")
+    p.add_argument("--wandb-run", type=str, default=None)
     p.add_argument("--seed", type=int, default=1337)
     args = p.parse_args()
 
@@ -224,6 +228,10 @@ def main() -> None:
     if info.is_main:
         out_dir.mkdir(parents=True, exist_ok=True)
     logger = JsonlLogger(Path("logs") / "train.jsonl", enabled=info.is_main)
+    wb = None
+    if args.wandb and info.is_main:
+        import wandb  # type: ignore
+        wb = wandb.init(project=args.wandb_project, name=args.wandb_run, config=cfg)
 
     max_steps = 2 if args.dry_run else cfg["optim"]["max_steps"]
     eval_interval = cfg["eval"]["eval_interval"]
@@ -278,6 +286,9 @@ def main() -> None:
             t_prev = now
             print(f"step {step:6d} | loss {float(loss_accum):.4f} | lr {lr:.2e} | toks/s {tps:,.0f}")
             logger.log(step=step, loss=float(loss_accum), lr=lr, toks_per_sec=tps)
+            if wb is not None:
+                wb.log({"step": step, "loss": float(loss_accum), "lr": lr,
+                        "toks_per_sec": tps})
 
         if eval_interval and step > 0 and step % eval_interval == 0:
             model.eval()
