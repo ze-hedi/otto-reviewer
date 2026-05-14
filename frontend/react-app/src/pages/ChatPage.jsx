@@ -129,6 +129,7 @@ function ChatPage() {
             ⊞ Sub-agents
           </button>
         )}
+        {/* Code browser button hidden for now
         <button
           className={`chat-stats-btn${showCode ? ' active' : ''}`}
           onClick={() => { const next = !showCode; setShowCode(next); if (next) { setShowStats(false); setShowConfig(false); setShowSubAgents(false); } }}
@@ -136,6 +137,7 @@ function ChatPage() {
         >
           ⟨/⟩ Code
         </button>
+        */}
         <button
           className="chat-stats-btn"
           onClick={() => {
