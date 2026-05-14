@@ -453,7 +453,8 @@ app.get('/runtime/agents/:id/config', (req, res) => {
   }
 
   const config = piAgent.getConfig();
-  const tools = piAgent.getRegisteredTools();
+  const session = piAgent.getCurrentSession();
+  const tools = session ? session.getActiveToolNames() : piAgent.getRegisteredTools();
   res.json({ config, tools });
 });
 

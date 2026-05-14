@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAgentChat } from '../AgentChatContext';
 import './AgentDashboardPage.css';
 
 const POLL_INTERVAL = 5000;
@@ -41,10 +42,13 @@ function AgentDashboardPage() {
   const { agentId, sessionId } = useParams();
   const navigate = useNavigate();
 
+  const { toolCallCounts, hydrateFromServer } = useAgentChat(sessionId);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [polling, setPolling] = useState(true);
+  const [allTools, setAllTools] = useState([]);
   const intervalRef = useRef(null);
 
   const fetchStats = useCallback(async () => {
@@ -68,7 +72,13 @@ function AgentDashboardPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    hydrateFromServer();
+    // Fetch tool list
+    fetch(`http://localhost:5000/runtime/agents/${sessionId}/config`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => { if (json?.tools) setAllTools(json.tools); })
+      .catch(() => {});
+  }, [fetchStats, sessionId, hydrateFromServer]);
 
   useEffect(() => {
     if (polling) {
@@ -182,6 +192,25 @@ function AgentDashboardPage() {
                   <StatRow label="Cache write tokens" value={sess.tokens?.cacheWrite?.toLocaleString()} />
                   <StatRow label="Total tokens" value={sess.tokens?.total?.toLocaleString()} />
                   <StatRow label="Estimated cost" value={formatCost(sess.cost)} />
+                </div>
+              </div>
+            )}
+            {/* Tool usage breakdown */}
+            {allTools.length > 0 && (
+              <div className="adash-section">
+                <div className="adash-section-title">Tool Usage</div>
+                <div className="adash-card">
+                  {[...allTools]
+                    .sort((a, b) => (toolCallCounts[b] || 0) - (toolCallCounts[a] || 0))
+                    .map((toolName) => {
+                      const count = toolCallCounts[toolName] || 0;
+                      return (
+                        <div key={toolName} className={`adash-tool-row${count === 0 ? ' inactive' : ''}`}>
+                          <span className="adash-tool-name">{toolName}</span>
+                          <span className="adash-tool-count">{count}</span>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}

@@ -12,6 +12,7 @@ import { createContext, useContext, useCallback, useSyncExternalStore } from 're
  *   error: string|null,
  *   hydrated: boolean,
  *   createdAt: number,
+ *   toolCallCounts: Object,
  * }} ChatSession
  */
 
@@ -38,6 +39,7 @@ function getSession(sessionId) {
       error: null,
       hydrated: false,
       createdAt: Date.now(),
+      toolCallCounts: {},
     });
   }
   return sessions.get(sessionId);
@@ -67,6 +69,7 @@ function createSession(agentId, sessionId, agentName) {
     error: null,
     hydrated: false,
     createdAt: Date.now(),
+    toolCallCounts: {},
   });
 
   if (!agentSessions.has(agentId)) {
@@ -142,6 +145,12 @@ function finalizeAssistant(sessionId) {
 }
 
 function appendToolStart(sessionId, event) {
+  // Increment per-tool counter
+  const s = getSession(sessionId);
+  const counts = { ...s.toolCallCounts };
+  counts[event.name] = (counts[event.name] || 0) + 1;
+  sessions.set(sessionId, { ...s, toolCallCounts: counts });
+
   updateMessages(sessionId, (prev) => [
     ...prev,
     { role: 'tool', name: event.name, args: event.args, result: null, isError: false, done: false, id: Date.now() + Math.random() },
@@ -200,7 +209,16 @@ function hydrateFromServer(sessionId) {
         }
       }
       if (hydrated.length > 0) {
-        updateMessages(sessionId, () => hydrated);
+        // Build tool call counts from hydrated messages
+        const counts = {};
+        for (const m of hydrated) {
+          if (m.role === 'tool') {
+            counts[m.name] = (counts[m.name] || 0) + 1;
+          }
+        }
+        const cur = getSession(sessionId);
+        sessions.set(sessionId, { ...cur, messages: hydrated, toolCallCounts: counts });
+        emit();
       }
     })
     .catch(() => {});
@@ -293,7 +311,7 @@ function subscribe(cb) {
   return () => listeners.delete(cb);
 }
 
-const EMPTY_SESSION = { agentId: null, agentName: '', messages: [], streaming: false, error: null, hydrated: false, createdAt: 0 };
+const EMPTY_SESSION = { agentId: null, agentName: '', messages: [], streaming: false, error: null, hydrated: false, createdAt: 0, toolCallCounts: {} };
 const EMPTY_SESSIONS = [];
 
 // Cache for getAgentSessions snapshots — rebuilt on emit(), stable reference between emits
@@ -343,6 +361,7 @@ export function useAgentChat(sessionId) {
     messages: session.messages,
     streaming: session.streaming,
     error: session.error,
+    toolCallCounts: session.toolCallCounts,
     sendMessage: useCallback((text) => ctx.sendMessage(sessionId, text), [ctx, sessionId]),
     abortAgent: useCallback(() => ctx.abortAgent(sessionId), [ctx, sessionId]),
     hydrateFromServer: useCallback(() => ctx.hydrateFromServer(sessionId), [ctx, sessionId]),

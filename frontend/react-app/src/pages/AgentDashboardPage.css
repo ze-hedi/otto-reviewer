@@ -266,3 +266,36 @@
   font-size: 0.8rem;
   text-align: right;
 }
+
+/* ── Tool usage rows ───────────────────────────────────────── */
+.adash-tool-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(42, 51, 80, 0.5);
+}
+
+.adash-tool-row:last-child {
+  border-bottom: none;
+}
+
+.adash-tool-row.inactive {
+  opacity: 0.35;
+}
+
+.adash-tool-name {
+  font-size: 0.82rem;
+  font-family: 'Courier New', monospace;
+  color: #e2e8f0;
+}
+
+.adash-tool-count {
+  font-size: 0.82rem;
+  font-family: 'Courier New', monospace;
+  color: #7c8cf8;
+  font-weight: 600;
+  min-width: 28px;
+  text-align: right;
+}
