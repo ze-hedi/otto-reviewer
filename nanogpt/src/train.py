@@ -155,6 +155,18 @@ def main() -> None:
     eval_iters = cfg["eval"]["eval_iters"]
     ckpt_interval = cfg["checkpoint"]["interval"]
 
+    # 4.7: gradient accumulation. The GPT-3 small recipe uses 0.5M tokens
+    # per optimizer step. micro_batch_size * seq_len * world_size sets one
+    # micro-batch's token count; we accumulate enough micro-batches to hit
+    # batch_tokens before stepping the optimizer.
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    micro_tokens = cfg["batch"]["micro_batch_size"] * cfg["batch"]["seq_len"] * world_size
+    target_tokens = cfg["batch"]["batch_tokens"]
+    assert target_tokens % micro_tokens == 0, \
+        f"batch_tokens {target_tokens} must be a multiple of micro_tokens {micro_tokens}"
+    grad_accum = target_tokens // micro_tokens
+    print(f"grad accumulation: {grad_accum} micro-steps -> {target_tokens:,} tokens/optim-step")
+
     # 4.2: bf16 autocast in the forward (loss stays fp32 inside CE).
     dtype_name = cfg.get("runtime", {}).get("dtype", "float32")
     autocast_dtype = {"float32": None, "bfloat16": torch.bfloat16, "float16": torch.float16}[dtype_name]
@@ -167,25 +179,30 @@ def main() -> None:
         for g in optim.param_groups:
             g["lr"] = lr
 
-        # Step
-        x, y = train_ds.get_batch()
-        if use_autocast:
-            with torch.autocast(device_type="cuda", dtype=autocast_dtype):
-                _, loss = model(x, y)
-        else:
-            _, loss = model(x, y)
+        # Optim step = grad_accum micro-steps. Loss is averaged across
+        # micro-steps so the effective batch matches batch_tokens.
         optim.zero_grad(set_to_none=True)
-        loss.backward()
+        loss_accum = 0.0
+        for _ in range(grad_accum):
+            x, y = train_ds.get_batch()
+            if use_autocast:
+                with torch.autocast(device_type="cuda", dtype=autocast_dtype):
+                    _, loss = model(x, y)
+            else:
+                _, loss = model(x, y)
+            loss = loss / grad_accum
+            loss_accum += loss.item()
+            loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg["optim"]["grad_clip"])
         optim.step()
 
         # Bookkeeping
         if step % 10 == 0 or step == max_steps - 1:
             now = time.time()
-            tps = cfg["batch"]["micro_batch_size"] * cfg["batch"]["seq_len"] * 10 / max(now - t_prev, 1e-9)
+            tps = target_tokens * 10 / max(now - t_prev, 1e-9)
             t_prev = now
-            print(f"step {step:6d} | loss {loss.item():.4f} | lr {lr:.2e} | toks/s {tps:,.0f}")
-            logger.log(step=step, loss=loss.item(), lr=lr, toks_per_sec=tps)
+            print(f"step {step:6d} | loss {loss_accum:.4f} | lr {lr:.2e} | toks/s {tps:,.0f}")
+            logger.log(step=step, loss=loss_accum, lr=lr, toks_per_sec=tps)
 
         # Eval
         if eval_interval and step > 0 and step % eval_interval == 0:
