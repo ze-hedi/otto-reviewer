@@ -127,15 +127,19 @@ function ChatPage() {
             ⊞ Sub-agents
           </button>
         )}
-        {agent?.type === 'orchestrator' && (
-          <button
-            className="chat-stats-btn"
-            onClick={() => navigate(`/dashboard/${agentId}`)}
-            title="Open dashboard"
-          >
-            ▦ Dashboard
-          </button>
-        )}
+        <button
+          className="chat-stats-btn"
+          onClick={() => {
+            if (agent?.type === 'orchestrator') {
+              navigate(`/dashboard/${agentId}`);
+            } else {
+              navigate(`/dashboard/${agentId}/${chatKey}`);
+            }
+          }}
+          title="Open dashboard"
+        >
+          ▦ Dashboard
+        </button>
       </div>
 
       <div className="chat-body">
