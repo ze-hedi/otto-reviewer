@@ -37,8 +37,9 @@ function ContextBar({ contextUsage }) {
   );
 }
 
-function StatsCard({ title, contextUsage, sessionStats, badge }) {
+function StatsCard({ title, contextUsage, sessionStats, badge, toolCallCounts }) {
   const sess = sessionStats;
+  const toolEntries = toolCallCounts ? Object.entries(toolCallCounts).sort((a, b) => b[1] - a[1]) : [];
   return (
     <div className="dash-card">
       <div className="dash-card-header">
@@ -67,6 +68,14 @@ function StatsCard({ title, contextUsage, sessionStats, badge }) {
           <StatRow label="Cache write" value={sess.tokens?.cacheWrite?.toLocaleString()} />
           <StatRow label="Total tokens" value={sess.tokens?.total?.toLocaleString()} />
           <StatRow label="Cost" value={formatCost(sess.cost)} />
+        </div>
+      )}
+      {toolEntries.length > 0 && (
+        <div className="dash-card-section">
+          <div className="dash-card-section-title">Tool Usage</div>
+          {toolEntries.map(([name, count]) => (
+            <StatRow key={name} label={name} value={count} />
+          ))}
         </div>
       )}
     </div>
@@ -222,6 +231,7 @@ function DashboardPage() {
                       title={agent.name}
                       contextUsage={agent.contextUsage}
                       sessionStats={agent.sessionStats}
+                      toolCallCounts={agent.toolCallCounts}
                       badge="stateful"
                     />
                   ))}

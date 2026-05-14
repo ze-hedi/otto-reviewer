@@ -256,7 +256,7 @@ router.get('/runtime/orchestrator/:id/stats', async (req, res) => {
           for (const msg of messages) {
             if (msg.role === 'assistant' && Array.isArray(msg.content)) {
               for (const block of msg.content) {
-                if (block.type === 'tool_use' && block.name) {
+                if ((block.type === 'tool_use' || block.type === 'toolCall') && block.name) {
                   counts[block.name] = (counts[block.name] || 0) + 1;
                 }
               }
