@@ -314,6 +314,83 @@
   transform: scale(0.98);
 }
 
+/* ── Past Sessions ─────────────────────────────────────────────────────── */
+
+.agent-sessions {
+  margin-top: 0.5rem;
+}
+
+.agent-sessions-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.agent-sessions-summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-sessions-summary:hover {
+  color: #94a3b8;
+}
+
+.agent-sessions-arrow {
+  font-size: 1rem;
+  transition: transform 0.2s ease;
+  line-height: 1;
+}
+
+details[open] > .agent-sessions-summary .agent-sessions-arrow {
+  transform: rotate(90deg);
+}
+
+.agent-sessions-list {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.session-item:hover {
+  background: rgba(124, 140, 248, 0.08);
+  border-color: rgba(124, 140, 248, 0.2);
+}
+
+.session-name {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-meta {
+  font-size: 0.7rem;
+  color: #64748b;
+  white-space: nowrap;
+  margin-left: 0.75rem;
+}
+
 /* ── Animations ─────────────────────────────────────────────────────────── */
 
 @keyframes fadeSlideIn {

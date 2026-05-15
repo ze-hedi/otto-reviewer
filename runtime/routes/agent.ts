@@ -2,6 +2,8 @@
 // Agent lifecycle, chat, abort, config, messages, stats, and deletion.
 
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { PiAgent, PiAgentConfig } from '../../pi-agent.js';
 import { handleEvent, handleEventWithClient } from '../../pi-agent-utils.js';
 import { agentLogger } from '../agent-logger.js';
@@ -10,6 +12,7 @@ import {
   activeOrchestrators,
   orchestratorSubAgents,
   sessionAgentMap,
+  sessionFileMap,
   setCurrentAgentId,
   resolveModel,
 } from '../state.js';
@@ -26,12 +29,29 @@ const router = Router();
  * `activeAgents`, and sets it as the global `activeAgent`.
  */
 router.post('/runtime/run', async (req, res) => {
-  const { agent, files = [], sessionId: clientSessionId }: RunRequest = req.body;
+  const { agent, files = [], sessionId: clientSessionId, sessionFile }: RunRequest = req.body;
   const sessionId = clientSessionId || agent?._id;
 
   if (!agent?._id || !agent?.model) {
     res.status(400).json({ error: 'Request body must include agent._id and agent.model' });
     return;
+  }
+
+  // Deduplication: if this session file is already loaded, return existing session
+  if (sessionFile && sessionFileMap.has(sessionFile)) {
+    const existingSessionId = sessionFileMap.get(sessionFile)!;
+    if (activeAgents.has(existingSessionId)) {
+      res.json({
+        success: true,
+        existing: true,
+        sessionId: existingSessionId,
+        agentId: agent._id,
+        name: agent.name,
+      });
+      return;
+    }
+    // Stale entry — clean up
+    sessionFileMap.delete(sessionFile);
   }
 
   // Validate session mode requirements
@@ -54,15 +74,25 @@ router.post('/runtime/run', async (req, res) => {
     ? [{ name: 'agent-skills', content: skillsFile.content }]
     : [];
 
+  // Ensure memories directory exists for disk/continue sessions
+  const playground = agent.playground?.trim() || undefined;
+  let sessionDir: string | undefined;
+  if (playground && (agent.sessionMode === 'disk' || agent.sessionMode === 'continue')) {
+    sessionDir = path.join(playground, 'memories');
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
+
   const config: PiAgentConfig = {
+    name: agent.name,
     model: resolveModel(agent.model),
     systemPromptSuffix: soulFile?.content?.trim() || undefined,
     skills,
     sessionMode: agent.sessionMode || 'memory',
     thinkingLevel: agent.thinkingLevel || 'medium',
     workingDir: agent.workingDir?.trim() || undefined,
-    playground: agent.playground?.trim() || undefined,
+    playground,
     apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
+    ...(sessionDir ? { sessionDir } : {}),
     ...(agent.compaction ? { compaction: agent.compaction } : {}),
   };
 
@@ -75,11 +105,20 @@ router.post('/runtime/run', async (req, res) => {
       return;
     }
 
+    // Load a previous session file if provided
+    if (sessionFile) {
+      console.log(`[runtime] Loading session from: ${sessionFile}`);
+      await piAgent.loadSession(sessionFile);
+    }
+
     console.log("[runtime] PiAgent created successfully");
 
     // Store in map and as globals
     activeAgents.set(sessionId, piAgent);
     sessionAgentMap.set(sessionId, agent._id);
+    if (sessionFile) {
+      sessionFileMap.set(sessionFile, sessionId);
+    }
     setCurrentAgentId(sessionId);
     global.activeAgent    = piAgent;
     global.activeAgentId  = sessionId;
@@ -291,6 +330,10 @@ router.delete('/runtime/agents/:id', (req, res) => {
   }
   activeAgents.delete(id);
   sessionAgentMap.delete(id);
+  // Clean up sessionFileMap entry pointing to this session
+  for (const [file, sid] of sessionFileMap) {
+    if (sid === id) { sessionFileMap.delete(file); break; }
+  }
   if (activeOrchestrators.has(id)) {
     // Clean up sub-agent composite keys
     const subAgents = orchestratorSubAgents.get(id);

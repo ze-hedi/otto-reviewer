@@ -19,6 +19,9 @@ export const orchestratorSubAgents = new Map<string, AgentData[]>();
 // Map of sessionId → agentId (so we can look up which agent a session belongs to)
 export const sessionAgentMap = new Map<string, string>();
 
+// Map of sessionFile path → sessionId (deduplication of disk sessions)
+export const sessionFileMap = new Map<string, string>();
+
 // Convenience pointer to the last agent that was run
 export let currentAgentId: string | null = null;
 

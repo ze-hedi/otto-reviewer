@@ -77,6 +77,7 @@ function AgentsPage() {
   const [popup, setPopup]                 = useState(null); // { message, code, agent }
   const [apiKeyInput, setApiKeyInput]     = useState('');
   const [savingKey, setSavingKey]         = useState(false);
+  const [sessionsMap, setSessionsMap]     = useState({}); // agentId → sessionFile[]
 
   useEffect(() => {
     Promise.all([
@@ -98,6 +99,26 @@ function AgentsPage() {
         setLoading(false);
       });
   }, []);
+
+  // Fetch past session files for each coding agent
+  useEffect(() => {
+    const codingAgents = agents.filter(a => a._agentKind === 'coding');
+    if (codingAgents.length === 0) return;
+    Promise.all(
+      codingAgents.map(a =>
+        fetch(`/api/agents/${a._id}/sessions`)
+          .then(r => r.json())
+          .then(sessions => ({ id: a._id, sessions }))
+          .catch(() => ({ id: a._id, sessions: [] }))
+      )
+    ).then(results => {
+      const map = {};
+      for (const { id, sessions } of results) {
+        if (sessions.length > 0) map[id] = sessions;
+      }
+      setSessionsMap(map);
+    });
+  }, [agents]);
 
   const resetFlow = () => {
     setFlowStep(null);
@@ -185,6 +206,32 @@ function AgentsPage() {
       navigate(`/chat/${agent._id}/${sessionId}`, { state: { agent } });
     } catch (err) {
       setPopup({ message: `Failed to start agent: ${err.message}`, code: 'unknown', agent });
+    }
+  };
+
+  const handleLoadSession = async (agent, sessionPath) => {
+    const sessionId = crypto.randomUUID();
+    try {
+      const filesRes = await fetch(`/api/agents/${agent._id}/files`);
+      const files = await filesRes.json();
+      const res = await fetch('http://localhost:5000/runtime/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent, files, sessionId, sessionFile: sessionPath }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPopup({ message: data.message || data.error || 'Runtime server error', code: data.error, agent });
+        return;
+      }
+      const activeSessionId = data.sessionId || sessionId;
+      if (!data.existing) {
+        createSession(agent._id, activeSessionId, agent.name);
+        setSessionMap((prev) => ({ ...prev, [activeSessionId]: agent._id }));
+      }
+      navigate(`/chat/${agent._id}/${activeSessionId}`, { state: { agent } });
+    } catch (err) {
+      setPopup({ message: `Failed to load session: ${err.message}`, code: 'unknown', agent });
     }
   };
 
@@ -361,6 +408,28 @@ function AgentsPage() {
                   )}
                 </div>
                 <p className="agent-description">{agent.description}</p>
+                {sessionsMap[agent._id]?.length > 0 && (
+                  <details className="agent-sessions">
+                    <summary className="agent-sessions-summary">
+                      <span>📁 Past Sessions ({sessionsMap[agent._id].length})</span>
+                      <span className="agent-sessions-arrow">›</span>
+                    </summary>
+                    <div className="agent-sessions-list">
+                      {sessionsMap[agent._id].map((s) => (
+                        <div
+                          key={s.filename}
+                          className="session-item"
+                          onClick={() => handleLoadSession(agent, s.path)}
+                        >
+                          <span className="session-name">{s.filename}</span>
+                          <span className="session-meta">
+                            {new Date(s.modified).toLocaleDateString()} · {(s.size / 1024).toFixed(1)} KB
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
                 <div className="agent-actions">
                   {!isMemory && (
                     <>

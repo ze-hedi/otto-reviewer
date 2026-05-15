@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { connect } = require('./connection');
 const Agent = require('./models/Agent');
 const AgentFile = require('./models/AgentFile');
@@ -61,6 +63,35 @@ app.post('/api/agents', async (req, res) => {
 app.get('/api/agents/:id/files', async (req, res) => {
   try {
     const files = await AgentFile.find({ agent_id: req.params.id });
+    res.json(files);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/agents/:id/sessions', async (req, res) => {
+  try {
+    const agent = await Agent.findById(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.playground) return res.json([]);
+
+    const memoriesDir = path.join(agent.playground, 'memories');
+    if (!fs.existsSync(memoriesDir)) return res.json([]);
+
+    const prefix = agent.name.replace(/[^a-zA-Z0-9_-]/g, '_') + '_';
+    const files = fs.readdirSync(memoriesDir)
+      .filter(f => f.startsWith(prefix) && f.endsWith('.jsonl'))
+      .map(f => {
+        const stat = fs.statSync(path.join(memoriesDir, f));
+        return {
+          filename: f,
+          path: path.join(memoriesDir, f),
+          size: stat.size,
+          modified: stat.mtime,
+        };
+      })
+      .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+
     res.json(files);
   } catch (err) {
     res.status(400).json({ error: err.message });

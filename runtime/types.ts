@@ -31,6 +31,7 @@ export interface RunRequest {
   agent: AgentData;
   files?: AgentFile[];
   sessionId?: string;
+  sessionFile?: string;
 }
 
 export interface OrchestratorRunRequest {

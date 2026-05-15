@@ -165,6 +165,8 @@ export interface ToolInput {
 }
 
 export interface PiAgentConfig {
+  /** Agent name (used for session file naming) */
+  name?: string;
   /** Model provider and name, e.g., "anthropic/claude-sonnet-4-5" */
   model: string;
   /** Additional system prompt appended to Pi's default */
@@ -199,6 +201,8 @@ export interface PiAgentConfig {
     params: any,
     signal?: AbortSignal
   ) => Promise<{ content: any[]; details?: any }>;
+  /** Override directory for session persistence (used by SessionManager.create). */
+  sessionDir?: string;
   /** Mem0 configuration. When provided, a Mem0 instance is created with a per-agent history DB. */
   mem0Config?: Mem0Config;
   /** Compaction (context compression) settings */
@@ -226,7 +230,7 @@ export class PiAgent {
   private modelRegistry: ModelRegistry;
   private model: Model<Api>;
   private config: Required<
-    Omit<PiAgentConfig, "apiKey" | "workingDir" | "playground" | "model" | "skills" | "handlers" | "tools" | "onToolExecute" | "mem0Config" | "compaction">
+    Omit<PiAgentConfig, "apiKey" | "workingDir" | "playground" | "model" | "skills" | "handlers" | "tools" | "onToolExecute" | "mem0Config" | "compaction" | "sessionDir" | "name">
   > & {
     workingDir: string;
     playground: string;
@@ -242,6 +246,8 @@ export class PiAgent {
   private _provider: string = "";
   private _mem0: Mem0 | null = null;
   private _compaction: PiAgentConfig["compaction"];
+  private _sessionDir: string | undefined;
+  private _name: string | undefined;
 
   constructor(config: PiAgentConfig) {
     const [provider, modelName] = config.model.split("/");
@@ -278,7 +284,9 @@ export class PiAgent {
       onToolExecute: config.onToolExecute,
     };
 
-    // Store compaction config for session creation
+    // Store optional overrides for session creation
+    this._name = config.name;
+    this._sessionDir = config.sessionDir;
     this._compaction = config.compaction;
 
     // Initialize mem0 if configured
@@ -555,19 +563,33 @@ export class PiAgent {
   }
 
   private async _createSession(): Promise<AgentSession> {
+    const sessionDir = this._sessionDir ?? this.config.workingDir;
     let sessionManager: SessionManager;
     switch (this.config.sessionMode) {
       case "memory":
         sessionManager = SessionManager.inMemory(this.config.playground);
         break;
-      case "disk":
-        sessionManager = SessionManager.create(this.config.playground, this.config.workingDir);
+      case "disk": {
+        // Use custom filename: <agentName>_<date>.jsonl
+        const safeName = (this._name ?? "agent").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `${safeName}_${timestamp}.jsonl`;
+        const filePath = path.join(sessionDir, filename);
+        sessionManager = SessionManager.open(filePath, sessionDir, this.config.playground);
         break;
+      }
       case "continue":
-        sessionManager = SessionManager.continueRecent(this.config.playground, this.config.workingDir);
+        sessionManager = SessionManager.continueRecent(this.config.playground, sessionDir);
         break;
     }
+    return this._createSessionWith(sessionManager);
+  }
 
+  /**
+   * Core session creation: builds resource loader, settings, and calls createAgentSession.
+   * Shared by _createSession() and loadSession().
+   */
+  private async _createSessionWith(sessionManager: SessionManager): Promise<AgentSession> {
     // Always build a resource loader so we can:
     // 1. Scope cwd to the playground (bash tool starting dir, system prompt, settings)
     // 2. Filter out AGENTS.md files from parent directories — the SDK walks up the
@@ -784,6 +806,21 @@ export class PiAgent {
       await this._createSession();
     }
     return this.currentSession!;
+  }
+
+  /**
+   * Load a session from a JSONL file. Replaces the current session.
+   * The agent resumes with the full conversation history (including compaction summaries).
+   * @param sessionPath - Path to the .jsonl session file
+   * @param cwdOverride - Optional cwd override (defaults to playground)
+   */
+  async loadSession(sessionPath: string, cwdOverride?: string): Promise<AgentSession> {
+    const sessionManager = SessionManager.open(
+      sessionPath,
+      undefined,
+      cwdOverride ?? this.config.playground
+    );
+    return this._createSessionWith(sessionManager);
   }
 
   /**
