@@ -4,6 +4,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { Mem0 } from "./mem0.js";
+import type { Mem0Config } from "./mem0.js";
 import {
   AuthStorage,
   createAgentSession,
@@ -15,6 +17,7 @@ import {
   type AgentSessionEvent,
   type ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
+import { SettingsManager } from "@mariozechner/pi-coding-agent";
 import { getModel, Model, type Api, type KnownProvider } from "@mariozechner/pi-ai";
 import type { Skill } from "@mariozechner/pi-coding-agent";
 import type { TSchema } from "typebox";
@@ -196,6 +199,19 @@ export interface PiAgentConfig {
     params: any,
     signal?: AbortSignal
   ) => Promise<{ content: any[]; details?: any }>;
+  /** Mem0 configuration. When provided, a Mem0 instance is created with a per-agent history DB. */
+  mem0Config?: Mem0Config;
+  /** Compaction (context compression) settings */
+  compaction?: {
+    /** Enable/disable auto-compaction (default: true) */
+    enabled?: boolean;
+    /** Tokens to reserve as headroom before triggering compaction */
+    reserveTokens?: number;
+    /** How many recent tokens to keep after compaction (not summarized) */
+    keepRecentTokens?: number;
+    /** Custom instructions appended to the summarization prompt */
+    customInstructions?: string;
+  };
 }
 
 /** Raw event callback — receives the full AgentSessionEvent union. */
@@ -210,7 +226,7 @@ export class PiAgent {
   private modelRegistry: ModelRegistry;
   private model: Model<Api>;
   private config: Required<
-    Omit<PiAgentConfig, "apiKey" | "workingDir" | "playground" | "model" | "skills" | "handlers" | "tools" | "onToolExecute">
+    Omit<PiAgentConfig, "apiKey" | "workingDir" | "playground" | "model" | "skills" | "handlers" | "tools" | "onToolExecute" | "mem0Config" | "compaction">
   > & {
     workingDir: string;
     playground: string;
@@ -224,6 +240,8 @@ export class PiAgent {
   private toolDefinitions: Map<string, ToolDefinition> = new Map();
   private _hasApiKey: boolean = false;
   private _provider: string = "";
+  private _mem0: Mem0 | null = null;
+  private _compaction: PiAgentConfig["compaction"];
 
   constructor(config: PiAgentConfig) {
     const [provider, modelName] = config.model.split("/");
@@ -259,6 +277,19 @@ export class PiAgent {
       handlers: config.handlers ?? {},
       onToolExecute: config.onToolExecute,
     };
+
+    // Store compaction config for session creation
+    this._compaction = config.compaction;
+
+    // Initialize mem0 if configured
+    if (config.mem0Config) {
+      const agentDir = this.config.workingDir;
+      const defaultDbPath = path.join(agentDir, `mem0_${Date.now()}.db`);
+      this._mem0 = new Mem0({
+        ...config.mem0Config,
+        historyDbPath: config.mem0Config.historyDbPath ?? defaultDbPath,
+      });
+    }
 
     // Initialize custom tools from config
     this.customTools = config.tools ?? [];
@@ -571,6 +602,17 @@ export class PiAgent {
     const resourceLoader = new DefaultResourceLoader(loaderOptions);
     await resourceLoader.reload();
 
+    // Build settings manager with compaction overrides if configured
+    const settingsManager = this._compaction
+      ? SettingsManager.inMemory({
+          compaction: {
+            enabled: this._compaction.enabled,
+            reserveTokens: this._compaction.reserveTokens,
+            keepRecentTokens: this._compaction.keepRecentTokens,
+          },
+        })
+      : undefined;
+
     const { session } = await createAgentSession({
       cwd: playground,
       model: this.model,
@@ -579,6 +621,7 @@ export class PiAgent {
       modelRegistry: this.modelRegistry,
       thinkingLevel: this.config.thinkingLevel,
       resourceLoader,
+      ...(settingsManager ? { settingsManager } : {}),
       // Add custom tools if any are registered
       ...(this.toolDefinitions.size > 0 ? { customTools: Array.from(this.toolDefinitions.values()) } : {}),
     });
@@ -794,11 +837,58 @@ export class PiAgent {
       unsubscribe();
       unsubError();
     }
+
+    // Fire-and-forget: feed conversation to mem0 if configured
+    if (this._mem0) {
+      this._extractMemories(session.messages).catch(err =>
+        console.error(`[pi-agent] mem0 extraction failed: ${err.message}`)
+      );
+    }
+  }
+
+  /**
+   * Convert session messages to mem0 format and call add().
+   * Only text content is kept (tool_use blocks are skipped).
+   */
+  private async _extractMemories(messages: AgentMessage[]): Promise<void> {
+    const mem0Messages: { role: string; content: string }[] = [];
+    for (const msg of messages) {
+      if (msg.role !== "user" && msg.role !== "assistant") continue;
+      let text = "";
+      if (typeof msg.content === "string") {
+        text = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        text = msg.content
+          .filter((b: any) => b.type === "text")
+          .map((b: any) => b.text)
+          .join("\n");
+      }
+      if (text.trim()) {
+        mem0Messages.push({ role: msg.role, content: text.trim() });
+      }
+    }
+    if (mem0Messages.length === 0) return;
+    await this._mem0!.add(mem0Messages);
   }
 
   /** Get the currently active session (if any) */
   getCurrentSession(): AgentSession | null {
     return this.currentSession;
+  }
+
+  /** Set the Mem0 instance for this agent. */
+  setMem0(mem0: Mem0): void {
+    this._mem0 = mem0;
+  }
+
+  /** Get the Mem0 instance (null if not configured). */
+  getMem0(): Mem0 | null {
+    return this._mem0;
+  }
+
+  /** Get the compaction settings (from config or null if using defaults). */
+  getCompactionSettings(): PiAgentConfig["compaction"] | null {
+    return this._compaction ?? null;
   }
 
   /** Get all messages from the current session */
