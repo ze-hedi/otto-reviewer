@@ -16,8 +16,14 @@ export interface Mem0Config {
   anthropicApiKey?: string;
   /** Claude model to use for memory extraction (default: "claude-sonnet-4-6") */
   llmModel?: string;
-  /** Ollama embedding model (default: "all-minilm") */
+  /** Embedding provider: "openai" or "ollama" (default: "openai") */
+  embedProvider?: "openai" | "ollama";
+  /** Embedding model name (default: "text-embedding-3-small" for openai, "all-minilm" for ollama) */
   embedModel?: string;
+  /** Embedding dimensions (default: 1536 for openai, 384 for ollama) */
+  embedDims?: number;
+  /** OpenAI API key for embeddings (defaults to process.env.OPENAI_API_KEY) */
+  openaiApiKey?: string;
   /** Ollama base URL (default: "http://localhost:11434") */
   ollamaBaseUrl?: string;
   /** SQLite history db path (default: "memory.db") */
@@ -84,7 +90,28 @@ export class Mem0 {
       );
     }
 
-    const ollamaBaseUrl = config.ollamaBaseUrl ?? "http://localhost:11434";
+    const embedProvider = config.embedProvider ?? "openai";
+    const isOpenAI = embedProvider === "openai";
+    const embedModel = config.embedModel ?? (isOpenAI ? "text-embedding-3-small" : "all-minilm");
+    const embedDims = config.embedDims ?? (isOpenAI ? 1536 : 384);
+
+    const embedderConfig = isOpenAI
+      ? {
+          provider: "openai" as const,
+          config: {
+            apiKey: config.openaiApiKey ?? process.env.OPENAI_API_KEY,
+            model: embedModel,
+            embeddingDims: embedDims,
+          },
+        }
+      : {
+          provider: "ollama" as const,
+          config: {
+            model: embedModel,
+            baseURL: config.ollamaBaseUrl ?? "http://localhost:11434",
+            embeddingDims: embedDims,
+          },
+        };
 
     this.memory = new Memory({
       llm: {
@@ -94,24 +121,17 @@ export class Mem0 {
           model: config.llmModel ?? "claude-sonnet-4-6",
         },
       },
-      embedder: {
-        provider: "ollama",
-        config: {
-          model: config.embedModel ?? "all-minilm",
-          baseURL: ollamaBaseUrl,
-          embeddingDims: 384,
-        },
-      },
+      embedder: embedderConfig,
       vectorStore: {
         provider: "qdrant",
         config: {
-          url: config.qdrantUrl ?? process.env.QDRANT_URL ,
+          url: config.qdrantUrl ?? process.env.QDRANT_URL,
           ...(config.qdrantApiKey ?? process.env.QDRANT_API_KEY
             ? { apiKey: config.qdrantApiKey ?? process.env.QDRANT_API_KEY }
             : {}),
           collectionName: config.collectionName ?? "memories",
-          embeddingModelDims: 384,
-          dimension: 384,
+          embeddingModelDims: embedDims,
+          dimension: embedDims,
         },
       },
       historyDbPath: config.historyDbPath ?? "memory.db",

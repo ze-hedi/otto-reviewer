@@ -18,10 +18,13 @@
     "@mariozechner/pi-ai": "latest",
     "@mariozechner/pi-coding-agent": "latest",
     "dotenv": "^17.4.2",
-    "mem0ai": "latest"
+    "mem0ai": "^3.0.3"
   },
   "devDependencies": {
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "@qdrant/js-client-rest": "1.18.0"
   }
 }
