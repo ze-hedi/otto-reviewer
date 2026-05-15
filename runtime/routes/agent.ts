@@ -63,6 +63,7 @@ router.post('/runtime/run', async (req, res) => {
     workingDir: agent.workingDir?.trim() || undefined,
     playground: agent.playground?.trim() || undefined,
     apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
+    ...(agent.compaction ? { compaction: agent.compaction } : {}),
   };
 
   try {

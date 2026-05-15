@@ -556,6 +556,25 @@ details[open] .form-advanced-arrow {
   animation: fadeSlideIn 0.2s ease forwards;
 }
 
+/* ── Compaction toggle ──────────────────────────────────────────────────── */
+
+.compaction-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.compaction-toggle input[type="checkbox"] {
+  accent-color: #7c8cf8;
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
 /* ── Password field ─────────────────────────────────────────────────────── */
 
 .password-field {

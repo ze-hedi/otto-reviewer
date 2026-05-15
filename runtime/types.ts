@@ -14,6 +14,12 @@ export interface AgentData {
   playground?: string;
   apiKey?: string;
   stateful?: boolean;
+  compaction?: {
+    enabled?: boolean;
+    reserveTokens?: number;
+    keepRecentTokens?: number;
+    customInstructions?: string;
+  };
 }
 
 export interface AgentFile {

@@ -27,6 +27,10 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
   );
   const [apiKey, setApiKey]       = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [compactionEnabled, setCompactionEnabled]           = useState(editingAgent?.compaction?.enabled ?? true);
+  const [reserveTokens, setReserveTokens]                   = useState(editingAgent?.compaction?.reserveTokens ?? 16384);
+  const [keepRecentTokens, setKeepRecentTokens]             = useState(editingAgent?.compaction?.keepRecentTokens ?? 20000);
+  const [compactionInstructions, setCompactionInstructions] = useState(editingAgent?.compaction?.customInstructions ?? '');
 
   // Load available tools
   useEffect(() => {
@@ -77,6 +81,12 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
     icon,
     tools: selectedTools,
     ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+    compaction: {
+      enabled: compactionEnabled,
+      ...(reserveTokens !== '' ? { reserveTokens: Number(reserveTokens) } : {}),
+      ...(keepRecentTokens !== '' ? { keepRecentTokens: Number(keepRecentTokens) } : {}),
+      ...(compactionInstructions.trim() ? { customInstructions: compactionInstructions.trim() } : {}),
+    },
   });
 
   const apiCall = async (url, options) => {
@@ -166,6 +176,10 @@ function PiAgentFormContainer({ editingAgent, onCreated, onUpdated, onCancel }) 
       skillsDragOver={skillsDragOver}   setSkillsDragOver={setSkillsDragOver}
       apiKey={apiKey}                   setApiKey={setApiKey}
       showApiKey={showApiKey}           setShowApiKey={setShowApiKey}
+      compactionEnabled={compactionEnabled}         setCompactionEnabled={setCompactionEnabled}
+      reserveTokens={reserveTokens}                 setReserveTokens={setReserveTokens}
+      keepRecentTokens={keepRecentTokens}           setKeepRecentTokens={setKeepRecentTokens}
+      compactionInstructions={compactionInstructions} setCompactionInstructions={setCompactionInstructions}
       handleSystemPromptLoad={handleSystemPromptLoad}
       handleSkillsLoad={handleSkillsLoad}
       handleSkillsDrop={handleSkillsDrop}

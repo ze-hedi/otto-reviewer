@@ -53,6 +53,14 @@ function AgentForm({
   setApiKey,
   showApiKey,
   setShowApiKey,
+  compactionEnabled,
+  setCompactionEnabled,
+  reserveTokens,
+  setReserveTokens,
+  keepRecentTokens,
+  setKeepRecentTokens,
+  compactionInstructions,
+  setCompactionInstructions,
   handleSystemPromptLoad,
   handleSkillsLoad,
   handleSkillsDrop,
@@ -348,6 +356,61 @@ function AgentForm({
               </button>
             </div>
           </div>
+
+          {/* ── Context Compaction ──── */}
+          <div className="form-group" style={{ marginTop: '1.25rem' }}>
+            <label className="form-label">Context Compaction</label>
+            <label className="compaction-toggle">
+              <input
+                type="checkbox"
+                checked={compactionEnabled}
+                onChange={(e) => setCompactionEnabled(e.target.checked)}
+              />
+              <span>Enable auto-compaction</span>
+            </label>
+          </div>
+          {compactionEnabled && (
+            <div className="form-group--slide-in">
+              <div className="form-group">
+                <label className="form-label" htmlFor="reserve-tokens">Reserve Tokens</label>
+                <p className="form-hint">Headroom before compaction triggers. Higher = compacts sooner.</p>
+                <input
+                  id="reserve-tokens"
+                  className="form-input"
+                  type="number"
+                  placeholder="16384"
+                  value={reserveTokens}
+                  onChange={(e) => setReserveTokens(e.target.value)}
+                  min={0}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="keep-recent-tokens">Keep Recent Tokens</label>
+                <p className="form-hint">How many recent tokens survive compaction (not summarized).</p>
+                <input
+                  id="keep-recent-tokens"
+                  className="form-input"
+                  type="number"
+                  placeholder="20000"
+                  value={keepRecentTokens}
+                  onChange={(e) => setKeepRecentTokens(e.target.value)}
+                  min={0}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="compaction-instructions">Summarization Instructions</label>
+                <p className="form-hint">Custom focus for the compression summary (e.g. "prioritize code decisions").</p>
+                <textarea
+                  id="compaction-instructions"
+                  className="form-input"
+                  rows={2}
+                  placeholder="Optional — leave blank for default"
+                  value={compactionInstructions}
+                  onChange={(e) => setCompactionInstructions(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </details>
 

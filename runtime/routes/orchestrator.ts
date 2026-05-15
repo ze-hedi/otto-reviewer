@@ -70,6 +70,7 @@ router.post('/runtime/orchestrator/run', async (req, res) => {
         workingDir: agent.workingDir?.trim() || undefined,
         playground: agent.playground?.trim() || undefined,
         apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
+        ...(agent.compaction ? { compaction: agent.compaction } : {}),
       };
 
       const piAgent = new PiAgent(config);
