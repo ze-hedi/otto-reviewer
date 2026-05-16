@@ -6,6 +6,7 @@ const Sidebar = ({
   interfaces, loadingInterfaces, interfacesError,
   onDragStart, onAgentClick,
   onBuildPiAgent,
+  onBuildInterface,
 }) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
@@ -180,6 +181,12 @@ const Sidebar = ({
               </div>
             ))}
           </div>
+        )}
+
+        {!loadingInterfaces && !interfacesError && (
+          <button className="wf-build-agent-btn" onClick={onBuildInterface}>
+            + Create an Interface
+          </button>
         )}
       </div>
     </aside>

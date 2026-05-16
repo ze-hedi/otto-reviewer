@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import AgentDetailPanel from './components/AgentDetailPanel';
 import PiAgentFormContainer from './components/agents/PiAgentFormContainer';
+import InterfaceFormContainer from './components/InterfaceFormContainer';
 import { generateNodeId, NODE_DEFAULT_SIDES } from './utils';
 import './WorkflowBuilder.css';
 
@@ -26,6 +27,7 @@ const WorkflowBuilder = () => {
   const [interfacesError, setInterfacesError] = useState(null);
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const [creatingPiAgent, setCreatingPiAgent] = useState(false);
+  const [creatingInterface, setCreatingInterface] = useState(false);
   const draggedType = useRef(null);
   const snapshotRef = useRef({ nodes, connections });
   const agentsRef   = useRef(agents);
@@ -125,6 +127,7 @@ const WorkflowBuilder = () => {
   const closeAllPanels = useCallback(() => {
     setSelectedAgentId(null);
     setCreatingPiAgent(false);
+    setCreatingInterface(false);
   }, []);
 
   // Open empty PI agent creation form in the right panel
@@ -137,6 +140,18 @@ const WorkflowBuilder = () => {
   const handlePiAgentCreated = useCallback((newAgent) => {
     setAgents((prev) => [...prev, newAgent]);
     setCreatingPiAgent(false);
+  }, []);
+
+  // Open empty interface creation form in the right panel
+  const handleBuildInterface = useCallback(() => {
+    closeAllPanels();
+    setCreatingInterface(true);
+  }, [closeAllPanels]);
+
+  // Handle newly created interface — append to sidebar list and close panel
+  const handleInterfaceCreated = useCallback((newInterface) => {
+    setInterfaces((prev) => [...prev, newInterface]);
+    setCreatingInterface(false);
   }, []);
 
   // Persist a tool-link add/remove to the agent's DB record
@@ -442,6 +457,7 @@ const WorkflowBuilder = () => {
           onDragStart={handleSidebarDragStart}
           onAgentClick={(agentId) => { closeAllPanels(); setSelectedAgentId(agentId); }}
           onBuildPiAgent={handleBuildPiAgent}
+          onBuildInterface={handleBuildInterface}
         />
         <Canvas
           nodes={nodes}
@@ -477,6 +493,20 @@ const WorkflowBuilder = () => {
                 onCreated={handlePiAgentCreated}
                 onUpdated={() => {}}
                 onCancel={() => setCreatingPiAgent(false)}
+              />
+            </div>
+          </div>
+        )}
+        {creatingInterface && (
+          <div className="wf-detail-panel">
+            <div className="wf-detail-panel-header">
+              <span className="wf-detail-panel-title">Create an Interface</span>
+              <button className="wf-detail-panel-close" onClick={() => setCreatingInterface(false)}>×</button>
+            </div>
+            <div className="wf-detail-panel-body">
+              <InterfaceFormContainer
+                onCreated={handleInterfaceCreated}
+                onCancel={() => setCreatingInterface(false)}
               />
             </div>
           </div>

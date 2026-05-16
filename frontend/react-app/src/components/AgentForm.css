@@ -161,6 +161,7 @@
 
 .agent-icon-picker {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -175,7 +176,8 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  flex: 1;
+  flex: 1 1 calc(25% - 0.5rem);
+  max-width: calc(25% - 0.5rem);
   user-select: none;
 }
 
