@@ -17,8 +17,13 @@ function AgentDetailPanel({ agent, availableTools, onClose, onAgentUpdated }) {
   const [systemPromptFile, setSystemPromptFile] = useState(null);
   const [skills, setSkills] = useState([]);
   const [skillsDragOver, setSkillsDragOver] = useState(false);
+  const [playground, setPlayground] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [compactionEnabled, setCompactionEnabled] = useState(true);
+  const [reserveTokens, setReserveTokens] = useState(16384);
+  const [keepRecentTokens, setKeepRecentTokens] = useState(20000);
+  const [compactionInstructions, setCompactionInstructions] = useState('');
 
   useEffect(() => {
     if (!agent) return;
@@ -30,7 +35,12 @@ function AgentDetailPanel({ agent, availableTools, onClose, onAgentUpdated }) {
     setThinkingLevel(agent.thinkingLevel || 'medium');
     setSessionMode(agent.sessionMode || 'memory');
     setWorkingDir(agent.workingDir || '');
+    setPlayground(agent.playground || '');
     setIcon(agent.icon || '🤖');
+    setCompactionEnabled(agent.compaction?.enabled ?? true);
+    setReserveTokens(agent.compaction?.reserveTokens ?? 16384);
+    setKeepRecentTokens(agent.compaction?.keepRecentTokens ?? 20000);
+    setCompactionInstructions(agent.compaction?.customInstructions ?? '');
     setSelectedTools(
       agent.tools ? agent.tools.map((t) => (typeof t === 'object' ? t._id : t)) : []
     );
@@ -77,11 +87,18 @@ function AgentDetailPanel({ agent, availableTools, onClose, onAgentUpdated }) {
       thinkingLevel,
       sessionMode,
       ...(sessionMode === 'disk' || sessionMode === 'continue' ? { workingDir } : {}),
+      playground,
       systemPrompt: getSystemPrompt(),
       skills,
       icon,
       tools: selectedTools,
       ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+      compaction: {
+        enabled: compactionEnabled,
+        ...(reserveTokens !== '' ? { reserveTokens: Number(reserveTokens) } : {}),
+        ...(keepRecentTokens !== '' ? { keepRecentTokens: Number(keepRecentTokens) } : {}),
+        ...(compactionInstructions.trim() ? { customInstructions: compactionInstructions.trim() } : {}),
+      },
     };
     try {
       const res = await fetch(`http://localhost:4000/api/agents/${agent._id}`, {
@@ -169,6 +186,8 @@ function AgentDetailPanel({ agent, availableTools, onClose, onAgentUpdated }) {
             setSessionMode={setSessionMode}
             workingDir={workingDir}
             setWorkingDir={setWorkingDir}
+            playground={playground}
+            setPlayground={setPlayground}
             systemPromptMode={systemPromptMode}
             setSystemPromptMode={setSystemPromptMode}
             systemPromptText={systemPromptText}
@@ -183,6 +202,14 @@ function AgentDetailPanel({ agent, availableTools, onClose, onAgentUpdated }) {
             setApiKey={setApiKey}
             showApiKey={showApiKey}
             setShowApiKey={setShowApiKey}
+            compactionEnabled={compactionEnabled}
+            setCompactionEnabled={setCompactionEnabled}
+            reserveTokens={reserveTokens}
+            setReserveTokens={setReserveTokens}
+            keepRecentTokens={keepRecentTokens}
+            setKeepRecentTokens={setKeepRecentTokens}
+            compactionInstructions={compactionInstructions}
+            setCompactionInstructions={setCompactionInstructions}
             handleSystemPromptLoad={handleSystemPromptLoad}
             handleSkillsLoad={handleSkillsLoad}
             handleSkillsDrop={handleSkillsDrop}
