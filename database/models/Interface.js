@@ -4,16 +4,7 @@ const interfaceSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
     icon: { type: String, required: true },
-    executionFunction: {
-      type: String,
-      required: true,
-      validate: {
-        validator(v) {
-          try { new Function(v); return true; } catch { return false; }
-        },
-        message: 'executionFunction contains invalid JavaScript syntax',
-      },
-    },
+    description: { type: String, required: true },
   },
   { timestamps: true }
 );

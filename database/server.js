@@ -321,13 +321,13 @@ app.get('/api/interfaces', async (req, res) => {
 
 app.post('/api/interfaces', async (req, res) => {
   try {
-    const { name, icon, executionFunction } = req.body;
+    const { name, icon, description } = req.body;
 
-    if (!name || !icon || !executionFunction) {
-      return res.status(400).json({ error: 'name, icon, and executionFunction are required' });
+    if (!name || !icon || !description) {
+      return res.status(400).json({ error: 'name, icon, and description are required' });
     }
 
-    const iface = await Interface.create({ name, icon, executionFunction });
+    const iface = await Interface.create({ name, icon, description });
     res.status(201).json(iface);
   } catch (err) {
     if (err.code === 11000) {
@@ -350,10 +350,10 @@ app.get('/api/interfaces/:id', async (req, res) => {
 
 app.put('/api/interfaces/:id', async (req, res) => {
   try {
-    const { name, icon, executionFunction } = req.body;
+    const { name, icon, description } = req.body;
     const iface = await Interface.findByIdAndUpdate(
       req.params.id,
-      { name, icon, executionFunction },
+      { name, icon, description },
       { returnDocument: 'after', runValidators: true }
     );
     if (!iface) return res.status(404).json({ error: 'Interface not found' });
