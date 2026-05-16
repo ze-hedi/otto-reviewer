@@ -12,6 +12,7 @@ import agentRoutes from './routes/agent.js';
 import orchestratorRoutes from './routes/orchestrator.js';
 import filesRoutes from './routes/files.js';
 import logsRoutes from './routes/logs.js';
+import workflowRoutes from './routes/workflow.js';
 
 const app = express();
 const PORT = 5000;
@@ -25,6 +26,7 @@ app.use(agentRoutes);
 app.use(orchestratorRoutes);
 app.use(filesRoutes);
 app.use(logsRoutes);
+app.use(workflowRoutes);
 
 // ─── Status ──────────────────────────────────────────────────────────────────
 

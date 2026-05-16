@@ -90,6 +90,18 @@ html, body {
   cursor: not-allowed;
 }
 
+.wf-topbar .tb-btn--run {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.wf-topbar .tb-btn--run:hover {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: #16a34a;
+  color: #16a34a;
+}
+
 /* ── Body area (sidebar + canvas) ────────────────────────────── */
 .wf-body {
   display: flex;

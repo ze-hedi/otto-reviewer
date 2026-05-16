@@ -465,6 +465,42 @@ const WorkflowBuilder = () => {
   }, [saveSnapshot]);
 
   // Clear canvas
+  const handleRun = useCallback(async () => {
+    const agentNodes = nodes.filter((n) => n.type === 'agent');
+    if (agentNodes.length === 0) {
+      alert('Add at least one agent to the workflow before running.');
+      return;
+    }
+    const payload = {
+      nodes: nodes.map((n) => {
+        const base = { id: n.id, type: n.type };
+        if (n.type === 'agent') return { ...base, name: n.agentName, icon: n.agentIcon, agentId: n.agentId };
+        if (n.type === 'tool') return { ...base, name: n.toolName, icon: n.toolIcon, toolId: n.toolId };
+        if (n.type === 'artefact') return { ...base, name: n.label, icon: n.icon, artefactType: n.artefactType };
+        return base;
+      }),
+      connections: connections.map((c) => ({
+        from: c.from,
+        fromSide: c.fromSide,
+        to: c.to,
+        toSide: c.toSide,
+        ...(c.linkType ? { linkType: c.linkType } : {}),
+      })),
+    };
+    try {
+      const res = await fetch('http://localhost:5000/runtime/workflow/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+      alert(`Workflow started (${data.mode})\nSession: ${data.sessionId}`);
+    } catch (err) {
+      alert(`Failed to run workflow: ${err.message}`);
+    }
+  }, [nodes, connections]);
+
   const handleClear = useCallback(() => {
     saveSnapshot();
     setNodes([]);
@@ -483,6 +519,7 @@ const WorkflowBuilder = () => {
         onUndo={handleUndo}
         onExport={handleExport}
         onImport={handleImport}
+        onRun={handleRun}
         onClear={handleClear}
       />
       <div className="wf-body">

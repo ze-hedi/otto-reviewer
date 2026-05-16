@@ -7,6 +7,7 @@ const Header = ({
   onUndo,
   onExport,
   onImport,
+  onRun,
   onClear
 }) => {
   const uploadInputRef = useRef(null);
@@ -100,6 +101,15 @@ const Header = ({
         >
           <i className="bi bi-trash3"></i>
           <span>Clear</span>
+        </button>
+
+        <button
+          className="tb-btn tb-btn--run"
+          onClick={onRun}
+          title="Run workflow"
+        >
+          <i className="bi bi-play-fill"></i>
+          <span>Run</span>
         </button>
       </div>
     </header>

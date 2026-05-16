@@ -60,6 +60,16 @@ app.post('/api/agents', async (req, res) => {
   }
 });
 
+app.get('/api/agents/:id', async (req, res) => {
+  try {
+    const agent = await Agent.findById(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json(agent);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/agents/:id/files', async (req, res) => {
   try {
     const files = await AgentFile.find({ agent_id: req.params.id });
