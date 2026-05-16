@@ -700,6 +700,69 @@ html, body {
 
 .wf-empty-hint i { font-size: 2.5rem; }
 
+/* ── Modal ─────────────────────────────────────────────────────── */
+
+.wf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.wf-modal {
+  background: #1a2035;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  padding: 2rem;
+  min-width: 320px;
+  text-align: center;
+}
+
+.wf-modal-text {
+  color: #e2e8f0;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.wf-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.wf-modal-actions button {
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #2a3350;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wf-modal-actions .btn--secondary {
+  background: #1e2637;
+  color: #cbd5e1;
+}
+
+.wf-modal-actions .btn--secondary:hover {
+  background: #2a3350;
+  border-color: #7c8cf8;
+}
+
+.wf-modal-actions .btn--primary {
+  background: #7c8cf8;
+  color: #fff;
+  border-color: #7c8cf8;
+}
+
+.wf-modal-actions .btn--primary:hover {
+  background: #6b7bf7;
+}
+
 /* ── Scrollbar (global) ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

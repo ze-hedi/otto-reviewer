@@ -413,16 +413,56 @@ const WorkflowBuilder = () => {
   }, [history]);
 
   // Export schema (disabled - functionality removed)
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+
   const handleExport = useCallback(() => {
-    // Export functionality disabled
-    console.log('Export functionality is currently disabled');
+    setShowExportConfirm(true);
   }, []);
 
-  // Import schema (disabled - functionality removed)
-  const handleImport = useCallback(() => {
-    // Import functionality disabled
-    console.log('Import functionality is currently disabled');
-  }, []);
+  const confirmExport = useCallback(() => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      nodes: nodes.map((n) => {
+        const base = { id: n.id, type: n.type, x: n.x, y: n.y };
+        if (n.type === 'agent') return { ...base, name: n.agentName, icon: n.agentIcon, agentId: n.agentId };
+        if (n.type === 'tool') return { ...base, name: n.toolName, icon: n.toolIcon, toolId: n.toolId };
+        if (n.type === 'artefact') return { ...base, name: n.label, icon: n.icon, artefactType: n.artefactType };
+        return base;
+      }),
+      connections: connections.map((c) => ({
+        from: c.from,
+        fromSide: c.fromSide,
+        to: c.to,
+        toSide: c.toSide,
+        ...(c.linkType ? { linkType: c.linkType } : {}),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workflow-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportConfirm(false);
+  }, [nodes, connections]);
+
+  const handleImport = useCallback((data) => {
+    if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.connections)) {
+      alert('Invalid workflow file: missing nodes or connections.');
+      return;
+    }
+    saveSnapshot();
+    const importedNodes = data.nodes.map((n) => {
+      const base = { id: n.id, type: n.type, x: n.x, y: n.y };
+      if (n.type === 'agent') return { ...base, agentId: n.agentId, agentName: n.name, agentIcon: n.icon || '🤖' };
+      if (n.type === 'tool') return { ...base, toolId: n.toolId, toolName: n.name, toolIcon: n.icon || '🔧' };
+      if (n.type === 'artefact') return { ...base, artefactType: n.artefactType, label: n.name, icon: n.icon };
+      return base;
+    });
+    setNodes(importedNodes);
+    setConnections(data.connections);
+  }, [saveSnapshot]);
 
   // Clear canvas
   const handleClear = useCallback(() => {
@@ -544,6 +584,18 @@ const WorkflowBuilder = () => {
         >
           ×
         </button>
+      )}
+
+      {showExportConfirm && (
+        <div className="wf-modal-overlay">
+          <div className="wf-modal">
+            <p className="wf-modal-text">Are you sure you want to export this workflow?</p>
+            <div className="wf-modal-actions">
+              <button className="btn btn--secondary" onClick={() => setShowExportConfirm(false)}>Cancel</button>
+              <button className="btn btn--primary" onClick={confirmExport}>Yes, export</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
