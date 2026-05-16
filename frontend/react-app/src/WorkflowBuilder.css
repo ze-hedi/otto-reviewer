@@ -712,6 +712,95 @@ html, body {
 
 .wf-empty-hint i { font-size: 2.5rem; }
 
+/* ── Canvas area (split layout) ────────────────────────────────── */
+
+.wf-canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wf-canvas-area .wf-canvas {
+  flex: 1;
+}
+
+.wf-canvas-area--split .wf-canvas {
+  flex: 1;
+}
+
+/* ── Terminal ──────────────────────────────────────────────────── */
+
+.wf-terminal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0a0e14;
+  border-top: 1px solid #2a3350;
+  min-height: 0;
+}
+
+.wf-terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  background: #111827;
+  border-bottom: 1px solid #1e2637;
+}
+
+.wf-terminal-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #22c55e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wf-terminal-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+}
+
+.wf-terminal-close:hover {
+  color: #e2e8f0;
+}
+
+.wf-terminal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.wf-terminal-line {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.wf-terminal-time {
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.wf-terminal-msg {
+  color: #e2e8f0;
+}
+
+.wf-terminal-line--error .wf-terminal-msg {
+  color: #f87171;
+}
+
+.wf-terminal-line--info .wf-terminal-msg {
+  color: #a5f3a3;
+}
+
 /* ── Modal ─────────────────────────────────────────────────────── */
 
 .wf-modal-overlay {

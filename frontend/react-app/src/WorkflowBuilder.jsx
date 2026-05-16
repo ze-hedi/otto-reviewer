@@ -5,6 +5,7 @@ import Canvas from './components/Canvas';
 import AgentDetailPanel from './components/AgentDetailPanel';
 import PiAgentFormContainer from './components/agents/PiAgentFormContainer';
 import InterfaceFormContainer from './components/InterfaceFormContainer';
+import Terminal from './components/Terminal';
 import { generateNodeId, NODE_DEFAULT_SIDES } from './utils';
 import './WorkflowBuilder.css';
 
@@ -29,6 +30,8 @@ const WorkflowBuilder = () => {
   const [creatingPiAgent, setCreatingPiAgent] = useState(false);
   const [creatingInterface, setCreatingInterface] = useState(false);
   const [selectedInterfaceId, setSelectedInterfaceId] = useState(null);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalLogs, setTerminalLogs] = useState([]);
   const draggedType = useRef(null);
   const snapshotRef = useRef({ nodes, connections });
   const agentsRef   = useRef(agents);
@@ -465,20 +468,41 @@ const WorkflowBuilder = () => {
   }, [saveSnapshot]);
 
   // Clear canvas
+  const addLog = useCallback((type, message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setTerminalLogs((prev) => [...prev, { timestamp, type, message }]);
+  }, []);
+
   const handleRun = useCallback(async () => {
     const agentNodes = nodes.filter((n) => n.type === 'agent');
     if (agentNodes.length === 0) {
-      alert('Add at least one agent to the workflow before running.');
+      setTerminalOpen(true);
+      addLog('error', 'Add at least one agent to the workflow before running.');
       return;
     }
+    setTerminalOpen(true);
+    addLog('info', 'Running workflow...');
+
+    // Build nodes with full agent data for the runtime
+    const builtNodes = await Promise.all(nodes.map(async (n) => {
+      const base = { id: n.id, type: n.type };
+      if (n.type === 'agent') {
+        const agentData = agents.find((a) => a._id === n.agentId);
+        // Fetch agent files (soul prompt, skills)
+        let files = [];
+        try {
+          const filesRes = await fetch(`http://localhost:4000/api/agents/${n.agentId}/files`);
+          if (filesRes.ok) files = await filesRes.json();
+        } catch {}
+        return { ...base, ...agentData, files };
+      }
+      if (n.type === 'tool') return { ...base, name: n.toolName, icon: n.toolIcon, toolId: n.toolId };
+      if (n.type === 'artefact') return { ...base, name: n.label, icon: n.icon, artefactType: n.artefactType };
+      return base;
+    }));
+
     const payload = {
-      nodes: nodes.map((n) => {
-        const base = { id: n.id, type: n.type };
-        if (n.type === 'agent') return { ...base, name: n.agentName, icon: n.agentIcon, agentId: n.agentId };
-        if (n.type === 'tool') return { ...base, name: n.toolName, icon: n.toolIcon, toolId: n.toolId };
-        if (n.type === 'artefact') return { ...base, name: n.label, icon: n.icon, artefactType: n.artefactType };
-        return base;
-      }),
+      nodes: builtNodes,
       connections: connections.map((c) => ({
         from: c.from,
         fromSide: c.fromSide,
@@ -495,11 +519,21 @@ const WorkflowBuilder = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unknown error');
-      alert(`Workflow started (${data.mode})\nSession: ${data.sessionId}`);
+      if (data.compilationSuccess) {
+        addLog('info', 'Compilation succeeded');
+      }
+      addLog('info', `Workflow started (${data.mode})`);
+      addLog('info', `Session: ${data.sessionId}`);
+      if (data.executionQueue) {
+        data.executionQueue.forEach((level, i) => {
+          const names = level.map((n) => `${n.name} (${n.type})`).join(', ');
+          addLog('info', `Level ${i}: ${names}`);
+        });
+      }
     } catch (err) {
-      alert(`Failed to run workflow: ${err.message}`);
+      addLog('error', `Failed: ${err.message}`);
     }
-  }, [nodes, connections]);
+  }, [nodes, connections, agents, addLog]);
 
   const handleClear = useCallback(() => {
     saveSnapshot();
@@ -540,21 +574,26 @@ const WorkflowBuilder = () => {
           onBuildInterface={handleBuildInterface}
           onInterfaceClick={(id) => { closeAllPanels(); setSelectedInterfaceId(id); }}
         />
-        <Canvas
-          nodes={nodes}
-          connections={connections}
-          connectionMode={connectionMode}
-          selectedNodeId={selectedNodeId}
-          onDrop={handleDrop}
-          onDeleteNode={handleDeleteNode}
-          onNodeDragStart={handleNodeDragStart}
-          onNodeDragMove={handleNodeDragMove}
-          onHandleDragStart={handleHandleDragStart}
-          onNodeClick={handleNodeClick}
-          onConnectionClick={handleConnectionClick}
-          onDeleteConnection={handleDeleteConnection}
-          onCanvasClick={handleCanvasClick}
-        />
+        <div className={`wf-canvas-area${terminalOpen ? ' wf-canvas-area--split' : ''}`}>
+          <Canvas
+            nodes={nodes}
+            connections={connections}
+            connectionMode={connectionMode}
+            selectedNodeId={selectedNodeId}
+            onDrop={handleDrop}
+            onDeleteNode={handleDeleteNode}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDragMove={handleNodeDragMove}
+            onHandleDragStart={handleHandleDragStart}
+            onNodeClick={handleNodeClick}
+            onConnectionClick={handleConnectionClick}
+            onDeleteConnection={handleDeleteConnection}
+            onCanvasClick={handleCanvasClick}
+          />
+          {terminalOpen && (
+            <Terminal logs={terminalLogs} onClose={() => setTerminalOpen(false)} />
+          )}
+        </div>
         {selectedAgentId && (
           <AgentDetailPanel
             agent={agents.find((a) => a._id === selectedAgentId)}

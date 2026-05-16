@@ -13,7 +13,7 @@ import {
   resolveModel,
 } from '../state.js';
 import type { AgentData, AgentFile } from '../types.js';
-import { buildExecutionQueue } from '../workflow-scheduler.js';
+import { buildExecutionQueue, compileGraph } from '../workflow-scheduler.js';
 
 const router = Router();
 
@@ -61,75 +61,44 @@ router.post('/runtime/workflow/run', async (req, res) => {
   }
 
   try {
-    // Build execution queue (Kahn's topological sort)
-    const executionQueue = buildExecutionQueue(nodes, connections);
+    // Build execution queue (Kahn's topological sort) and validate
+    const queueResult = buildExecutionQueue(nodes, connections);
+    const { levels: executionQueue, predecessors, successors } = compileGraph(queueResult);
     console.log(`[runtime] Workflow execution queue (${executionQueue.length} levels):`);
     executionQueue.forEach((level, i) => {
       console.log(`[runtime]   Level ${i}: ${level.map((n) => `${n.name || n.id} (${n.type})`).join(', ')}`);
     });
 
-    // Fetch full agent data from the DB for each agent node
-    const agentDataMap = new Map<string, AgentData>();
+    // Agent data is now sent directly from the frontend — no DB fetch needed
+    const buildAgent = (node: any): { agent: AgentData; piAgent: PiAgent } => {
+      const files: AgentFile[] = node.files || [];
+      const soulFile = files.find((f) => f.type === 'soul');
+      const skillsFile = files.find((f) => f.type === 'skills');
+      const skills = skillsFile ? [{ name: 'agent-skills', content: skillsFile.content }] : [];
 
-    for (const node of agentNodes) {
-      if (!node.agentId) continue;
-      const agentRes = await fetch(`http://localhost:4000/api/agents/${node.agentId}`);
-      if (!agentRes.ok) {
-        res.status(400).json({ error: `Could not fetch agent "${node.name}" from database` });
-        return;
-      }
-      const agent: AgentData = await agentRes.json();
-      agentDataMap.set(node.id, agent);
-    }
+      const config: PiAgentConfig = {
+        name: node.name,
+        model: resolveModel(node.model),
+        systemPromptSuffix: soulFile?.content?.trim() || undefined,
+        skills,
+        sessionMode: node.sessionMode || 'memory',
+        thinkingLevel: node.thinkingLevel || 'medium',
+        workingDir: node.workingDir?.trim() || undefined,
+        playground: node.playground?.trim() || undefined,
+        apiKey: node.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
+        ...(node.compaction ? { compaction: node.compaction } : {}),
+      };
 
-    // Determine tool links from connections
-    const toolLinksPerAgent = new Map<string, string[]>();
-    for (const conn of connections) {
-      if (conn.linkType === 'tool-link') {
-        const fromNode = nodes.find((n) => n.id === conn.from);
-        const toNode = nodes.find((n) => n.id === conn.to);
-        const agentNodeId = fromNode?.type === 'agent' ? conn.from : toNode?.type === 'agent' ? conn.to : null;
-        const toolNode = fromNode?.type === 'tool' ? fromNode : toNode?.type === 'tool' ? toNode : null;
-        if (agentNodeId && toolNode?.toolId) {
-          const existing = toolLinksPerAgent.get(agentNodeId) || [];
-          existing.push(toolNode.toolId);
-          toolLinksPerAgent.set(agentNodeId, existing);
-        }
-      }
-    }
+      return { agent: node as AgentData, piAgent: new PiAgent(config) };
+    };
 
     const sessionId = `workflow-${Date.now()}`;
 
     // Single agent — run directly
     if (agentNodes.length === 1) {
       const node = agentNodes[0];
-      const agent = agentDataMap.get(node.id)!;
+      const { agent, piAgent } = buildAgent(node);
 
-      // Fetch agent files
-      let files: AgentFile[] = [];
-      try {
-        const filesRes = await fetch(`http://localhost:4000/api/agents/${agent._id}/files`);
-        if (filesRes.ok) files = await filesRes.json();
-      } catch {}
-
-      const soulFile = files.find((f) => f.type === 'soul');
-      const skillsFile = files.find((f) => f.type === 'skills');
-      const skills = skillsFile ? [{ name: 'agent-skills', content: skillsFile.content }] : [];
-
-      const config: PiAgentConfig = {
-        name: agent.name,
-        model: resolveModel(agent.model),
-        systemPromptSuffix: soulFile?.content?.trim() || undefined,
-        skills,
-        sessionMode: agent.sessionMode || 'memory',
-        thinkingLevel: agent.thinkingLevel || 'medium',
-        workingDir: agent.workingDir?.trim() || undefined,
-        playground: agent.playground?.trim() || undefined,
-        apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
-        ...(agent.compaction ? { compaction: agent.compaction } : {}),
-      };
-
-      const piAgent = new PiAgent(config);
       activeAgents.set(sessionId, piAgent);
       sessionAgentMap.set(sessionId, agent._id);
       setCurrentAgentId(sessionId);
@@ -140,6 +109,7 @@ router.post('/runtime/workflow/run', async (req, res) => {
 
       res.json({
         success: true,
+        compilationSuccess: true,
         mode: 'single-agent',
         sessionId,
         agent: agent.name,
@@ -150,38 +120,11 @@ router.post('/runtime/workflow/run', async (req, res) => {
 
     // Multiple agents — create orchestrator
     const subAgentEntries: { agentData: AgentData; piAgent: PiAgent }[] = [];
-    const agentsForState: AgentData[] = [];
 
     for (const node of agentNodes) {
-      const agent = agentDataMap.get(node.id)!;
-      agentsForState.push(agent);
-
-      let files: AgentFile[] = [];
-      try {
-        const filesRes = await fetch(`http://localhost:4000/api/agents/${agent._id}/files`);
-        if (filesRes.ok) files = await filesRes.json();
-      } catch {}
-
-      const soulFile = files.find((f) => f.type === 'soul');
-      const skillsFile = files.find((f) => f.type === 'skills');
-      const skills = skillsFile ? [{ name: 'agent-skills', content: skillsFile.content }] : [];
-
-      const config: PiAgentConfig = {
-        model: resolveModel(agent.model),
-        systemPromptSuffix: soulFile?.content?.trim() || undefined,
-        skills,
-        sessionMode: agent.sessionMode || 'memory',
-        thinkingLevel: agent.thinkingLevel || 'medium',
-        workingDir: agent.workingDir?.trim() || undefined,
-        playground: agent.playground?.trim() || undefined,
-        apiKey: agent.apiKey || process.env.ANTHROPIC_API_KEY || undefined,
-        ...(agent.compaction ? { compaction: agent.compaction } : {}),
-      };
-
-      const piAgent = new PiAgent(config);
+      const { agent, piAgent } = buildAgent(node);
       activeAgents.set(`${sessionId}::${agent._id}`, piAgent);
       subAgentEntries.push({ agentData: agent, piAgent });
-
       console.log(`[runtime] Workflow sub-agent "${agent.name}" (${sessionId}::${agent._id}) created`);
     }
 
@@ -204,6 +147,7 @@ router.post('/runtime/workflow/run', async (req, res) => {
 
     orchestrator.initialize();
 
+    const agentsForState = subAgentEntries.map((e) => e.agentData);
     activeOrchestrators.set(sessionId, orchestrator);
     orchestratorSubAgents.set(sessionId, agentsForState);
     activeAgents.set(sessionId, orchestrator.getOrchestrator());
@@ -217,6 +161,7 @@ router.post('/runtime/workflow/run', async (req, res) => {
 
     res.json({
       success: true,
+      compilationSuccess: true,
       mode: 'orchestrator',
       sessionId,
       agents: agentsForState.map((a) => a.name),
