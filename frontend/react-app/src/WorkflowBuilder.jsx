@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import AgentDetailPanel from './components/AgentDetailPanel';
 import PiAgentFormContainer from './components/agents/PiAgentFormContainer';
-import InterfaceFormContainer from './components/InterfaceFormContainer';
 import Terminal from './components/Terminal';
 import { generateNodeId, NODE_DEFAULT_SIDES } from './utils';
 import './WorkflowBuilder.css';
@@ -28,8 +27,6 @@ const WorkflowBuilder = () => {
   const [interfacesError, setInterfacesError] = useState(null);
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const [creatingPiAgent, setCreatingPiAgent] = useState(false);
-  const [creatingInterface, setCreatingInterface] = useState(false);
-  const [selectedInterfaceId, setSelectedInterfaceId] = useState(null);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState([]);
   const draggedType = useRef(null);
@@ -131,8 +128,6 @@ const WorkflowBuilder = () => {
   const closeAllPanels = useCallback(() => {
     setSelectedAgentId(null);
     setCreatingPiAgent(false);
-    setCreatingInterface(false);
-    setSelectedInterfaceId(null);
   }, []);
 
   // Open empty PI agent creation form in the right panel
@@ -147,17 +142,6 @@ const WorkflowBuilder = () => {
     setCreatingPiAgent(false);
   }, []);
 
-  // Open empty interface creation form in the right panel
-  const handleBuildInterface = useCallback(() => {
-    closeAllPanels();
-    setCreatingInterface(true);
-  }, [closeAllPanels]);
-
-  // Handle newly created interface — append to sidebar list and close panel
-  const handleInterfaceCreated = useCallback((newInterface) => {
-    setInterfaces((prev) => [...prev, newInterface]);
-    setCreatingInterface(false);
-  }, []);
 
   // Persist a tool-link add/remove to the agent's DB record
   const syncToolLink = useCallback((agentNode, toolNode, action) => {
@@ -571,8 +555,6 @@ const WorkflowBuilder = () => {
           onAgentClick={(agentId) => { closeAllPanels(); setSelectedAgentId(agentId); }}
           placedAgentIds={nodes.filter((n) => n.type === 'agent').map((n) => n.agentId)}
           onBuildPiAgent={handleBuildPiAgent}
-          onBuildInterface={handleBuildInterface}
-          onInterfaceClick={(id) => { closeAllPanels(); setSelectedInterfaceId(id); }}
         />
         <div className={`wf-canvas-area${terminalOpen ? ' wf-canvas-area--split' : ''}`}>
           <Canvas
@@ -613,35 +595,6 @@ const WorkflowBuilder = () => {
                 onCreated={handlePiAgentCreated}
                 onUpdated={() => {}}
                 onCancel={() => setCreatingPiAgent(false)}
-              />
-            </div>
-          </div>
-        )}
-        {creatingInterface && (
-          <div className="wf-detail-panel">
-            <div className="wf-detail-panel-header">
-              <span className="wf-detail-panel-title">Create an Interface</span>
-              <button className="wf-detail-panel-close" onClick={() => setCreatingInterface(false)}>×</button>
-            </div>
-            <div className="wf-detail-panel-body">
-              <InterfaceFormContainer
-                onCreated={handleInterfaceCreated}
-                onCancel={() => setCreatingInterface(false)}
-              />
-            </div>
-          </div>
-        )}
-        {selectedInterfaceId && (
-          <div className="wf-detail-panel">
-            <div className="wf-detail-panel-header">
-              <span className="wf-detail-panel-title">Interface Details</span>
-              <button className="wf-detail-panel-close" onClick={() => setSelectedInterfaceId(null)}>×</button>
-            </div>
-            <div className="wf-detail-panel-body">
-              <InterfaceFormContainer
-                editingInterface={interfaces.find((i) => i._id === selectedInterfaceId)}
-                readOnly
-                onCancel={() => setSelectedInterfaceId(null)}
               />
             </div>
           </div>

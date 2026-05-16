@@ -7,8 +7,6 @@ const Sidebar = ({
   placedAgentIds = [],
   onDragStart, onAgentClick,
   onBuildPiAgent,
-  onBuildInterface,
-  onInterfaceClick,
 }) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
@@ -178,7 +176,6 @@ const Sidebar = ({
                 className="wf-component wf-component--artefact"
                 draggable="true"
                 onDragStart={(e) => handleArtefactDragStart(e, artefact)}
-                onClick={() => onInterfaceClick?.(artefact._id)}
               >
                 <div className="wf-component-icon wf-component-icon--artefact">
                   {artefact.icon}
@@ -187,12 +184,6 @@ const Sidebar = ({
               </div>
             ))}
           </div>
-        )}
-
-        {!loadingInterfaces && !interfacesError && (
-          <button className="wf-build-agent-btn" onClick={onBuildInterface}>
-            + Create an Interface
-          </button>
         )}
       </div>
     </aside>
