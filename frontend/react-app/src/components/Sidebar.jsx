@@ -4,9 +4,11 @@ const Sidebar = ({
   agents, loadingAgents, agentsError,
   tools, loadingTools, toolsError,
   interfaces, loadingInterfaces, interfacesError,
+  placedAgentIds = [],
   onDragStart, onAgentClick,
   onBuildPiAgent,
   onBuildInterface,
+  onInterfaceClick,
 }) => {
   const handleAgentDragStart = (e, agent) => {
     e.dataTransfer.setData('application/json', JSON.stringify({
@@ -70,18 +72,21 @@ const Sidebar = ({
 
         {!loadingAgents && !agentsError && agents.length > 0 && (
           <div className="wf-category">
-            {agents.map(agent => (
-              <div
-                key={agent._id}
-                className="wf-component"
-                draggable="true"
-                onDragStart={(e) => handleAgentDragStart(e, agent)}
-                onClick={() => onAgentClick?.(agent._id)}
-              >
-                <div className="wf-component-icon">{agent.icon || '🤖'}</div>
-                <span>{agent.name}</span>
-              </div>
-            ))}
+            {agents.map(agent => {
+              const isPlaced = placedAgentIds.includes(agent._id);
+              return (
+                <div
+                  key={agent._id}
+                  className={`wf-component${isPlaced ? ' wf-component--disabled' : ''}`}
+                  draggable={!isPlaced}
+                  onDragStart={(e) => !isPlaced && handleAgentDragStart(e, agent)}
+                  onClick={() => !isPlaced && onAgentClick?.(agent._id)}
+                >
+                  <div className="wf-component-icon">{agent.icon || '🤖'}</div>
+                  <span>{agent.name}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -173,6 +178,7 @@ const Sidebar = ({
                 className="wf-component wf-component--artefact"
                 draggable="true"
                 onDragStart={(e) => handleArtefactDragStart(e, artefact)}
+                onClick={() => onInterfaceClick?.(artefact._id)}
               >
                 <div className="wf-component-icon wf-component-icon--artefact">
                   {artefact.icon}

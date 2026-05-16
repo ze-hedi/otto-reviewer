@@ -28,6 +28,7 @@ const WorkflowBuilder = () => {
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const [creatingPiAgent, setCreatingPiAgent] = useState(false);
   const [creatingInterface, setCreatingInterface] = useState(false);
+  const [selectedInterfaceId, setSelectedInterfaceId] = useState(null);
   const draggedType = useRef(null);
   const snapshotRef = useRef({ nodes, connections });
   const agentsRef   = useRef(agents);
@@ -128,6 +129,7 @@ const WorkflowBuilder = () => {
     setSelectedAgentId(null);
     setCreatingPiAgent(false);
     setCreatingInterface(false);
+    setSelectedInterfaceId(null);
   }, []);
 
   // Open empty PI agent creation form in the right panel
@@ -456,8 +458,10 @@ const WorkflowBuilder = () => {
           interfacesError={interfacesError}
           onDragStart={handleSidebarDragStart}
           onAgentClick={(agentId) => { closeAllPanels(); setSelectedAgentId(agentId); }}
+          placedAgentIds={nodes.filter((n) => n.type === 'agent').map((n) => n.agentId)}
           onBuildPiAgent={handleBuildPiAgent}
           onBuildInterface={handleBuildInterface}
+          onInterfaceClick={(id) => { closeAllPanels(); setSelectedInterfaceId(id); }}
         />
         <Canvas
           nodes={nodes}
@@ -507,6 +511,21 @@ const WorkflowBuilder = () => {
               <InterfaceFormContainer
                 onCreated={handleInterfaceCreated}
                 onCancel={() => setCreatingInterface(false)}
+              />
+            </div>
+          </div>
+        )}
+        {selectedInterfaceId && (
+          <div className="wf-detail-panel">
+            <div className="wf-detail-panel-header">
+              <span className="wf-detail-panel-title">Interface Details</span>
+              <button className="wf-detail-panel-close" onClick={() => setSelectedInterfaceId(null)}>×</button>
+            </div>
+            <div className="wf-detail-panel-body">
+              <InterfaceFormContainer
+                editingInterface={interfaces.find((i) => i._id === selectedInterfaceId)}
+                readOnly
+                onCancel={() => setSelectedInterfaceId(null)}
               />
             </div>
           </div>

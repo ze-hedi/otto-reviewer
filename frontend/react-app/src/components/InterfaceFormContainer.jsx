@@ -11,10 +11,10 @@ const INTERFACE_ICONS = [
   { value: '🔌', label: 'Plugin' },
 ];
 
-function InterfaceFormContainer({ onCreated, onCancel }) {
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('🖥️');
-  const [executionFunction, setExecutionFunction] = useState('');
+function InterfaceFormContainer({ editingInterface, readOnly, onCreated, onCancel }) {
+  const [name, setName] = useState(editingInterface?.name || '');
+  const [icon, setIcon] = useState(editingInterface?.icon || '🖥️');
+  const [executionFunction, setExecutionFunction] = useState(editingInterface?.executionFunction || '');
   const [syntaxError, setSyntaxError] = useState('');
 
   const validateFunction = (code) => {
@@ -56,7 +56,7 @@ function InterfaceFormContainer({ onCreated, onCancel }) {
 
   return (
     <div className="create-agent-form">
-      <h2 className="create-agent-title">New Interface</h2>
+      <h2 className="create-agent-title">{readOnly ? name : 'New Interface'}</h2>
 
       {/* ── Identity ───────────────────────────────────────── */}
       <div className="form-section">
@@ -71,6 +71,7 @@ function InterfaceFormContainer({ onCreated, onCancel }) {
             placeholder="e.g. Chat Interface"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={readOnly}
           />
         </div>
 
@@ -82,8 +83,9 @@ function InterfaceFormContainer({ onCreated, onCancel }) {
                 key={opt.value}
                 type="button"
                 className={`agent-icon-btn${icon === opt.value ? ' active' : ''}`}
-                onClick={() => setIcon(opt.value)}
+                onClick={() => !readOnly && setIcon(opt.value)}
                 title={opt.label}
+                disabled={readOnly}
               >
                 <span className="agent-icon-emoji">{opt.value}</span>
                 <span className="agent-icon-label">{opt.label}</span>
@@ -110,6 +112,7 @@ function InterfaceFormContainer({ onCreated, onCancel }) {
               else setSyntaxError('');
             }}
             style={{ fontFamily: 'monospace', resize: 'vertical' }}
+            disabled={readOnly}
           />
           {syntaxError && (
             <small className="form-error">{syntaxError}</small>
@@ -118,16 +121,18 @@ function InterfaceFormContainer({ onCreated, onCancel }) {
       </div>
 
       {/* ── Actions ────────────────────────────────────────── */}
-      <div className="form-actions">
-        <button className="btn btn--secondary" onClick={onCancel}>Cancel</button>
-        <button
-          className="btn btn--primary"
-          disabled={!isFormValid}
-          onClick={handleSubmit}
-        >
-          Create Interface
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="form-actions">
+          <button className="btn btn--secondary" onClick={onCancel}>Cancel</button>
+          <button
+            className="btn btn--primary"
+            disabled={!isFormValid}
+            onClick={handleSubmit}
+          >
+            Create Interface
+          </button>
+        </div>
+      )}
     </div>
   );
 }

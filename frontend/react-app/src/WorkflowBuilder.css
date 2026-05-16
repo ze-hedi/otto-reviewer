@@ -247,6 +247,12 @@ html, body {
   transform: scale(0.97);
 }
 
+.wf-component--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .wf-component-icon {
   width: 26px;
   height: 26px;
