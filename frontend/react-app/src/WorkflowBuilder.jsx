@@ -508,10 +508,20 @@ const WorkflowBuilder = () => {
       }
       addLog('info', `Workflow started (${data.mode})`);
       addLog('info', `Session: ${data.sessionId}`);
+      if (data.agentDetails) {
+        addLog('info', '── Agents ──────────────────────────');
+        data.agentDetails.forEach((a) => {
+          addLog('info', `  ${a.name} | model: ${a.model} | mode: ${a.sessionMode} | thinking: ${a.thinkingLevel}`);
+          if (a.tools.length > 0) {
+            addLog('info', `    interfaces: ${a.tools.join(', ')}`);
+          }
+        });
+      }
       if (data.executionQueue) {
+        addLog('info', '── Execution Queue ─────────────────');
         data.executionQueue.forEach((level, i) => {
           const names = level.map((n) => `${n.name} (${n.type})`).join(', ');
-          addLog('info', `Level ${i}: ${names}`);
+          addLog('info', `  Level ${i}: ${names}`);
         });
       }
     } catch (err) {

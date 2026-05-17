@@ -14,6 +14,7 @@ import {
 } from '../state.js';
 import type { AgentData, AgentFile } from '../types.js';
 import { buildExecutionQueue, compileGraph } from '../workflow-scheduler.js';
+import { briefingTool, planTool, reportTool, createDelegateTool } from '../../workflow_interfaces_tools.js';
 
 const router = Router();
 
@@ -94,10 +95,66 @@ router.post('/runtime/workflow/compile', async (req, res) => {
 
     const sessionId = `workflow-${Date.now()}`;
 
+    // Build all agents first
+    const agentMap = new Map<string, { agent: AgentData; piAgent: PiAgent }>();
+    for (const node of agentNodes) {
+      agentMap.set(node.id, buildAgent(node));
+    }
+
+    // Assign interface tools to each agent based on outgoing interfaces
+    const agentDetails: { name: string; model: string; sessionMode: string; thinkingLevel: string; tools: string[] }[] = [];
+
+    for (const node of agentNodes) {
+      const { agent: agentData, piAgent } = agentMap.get(node.id)!;
+      const nodeSuccessors = successors.get(node.id) || [];
+      const assignedTools: string[] = [];
+
+      for (const succ of nodeSuccessors) {
+        if (succ.type !== 'artefact') continue;
+        const interfaceName = (succ.name || '').toLowerCase();
+
+        if (interfaceName === 'briefing') {
+          piAgent.addTool(briefingTool);
+          assignedTools.push('briefing');
+          console.log(`[runtime]   Assigned briefingTool to "${node.name}"`);
+        } else if (interfaceName === 'plan') {
+          piAgent.addTool(planTool);
+          assignedTools.push('plan');
+          console.log(`[runtime]   Assigned planTool to "${node.name}"`);
+        } else if (interfaceName === 'report') {
+          piAgent.addTool(reportTool);
+          assignedTools.push('report');
+          console.log(`[runtime]   Assigned reportTool to "${node.name}"`);
+        } else if (interfaceName === 'delegate') {
+          const delegateSuccessors = successors.get(succ.id) || [];
+          const subAgents: Record<string, string> = {};
+          for (const delegatedNode of delegateSuccessors) {
+            if (delegatedNode.type === 'agent') {
+              const delegatedAgent = agentMap.get(delegatedNode.id);
+              if (delegatedAgent) {
+                subAgents[delegatedAgent.agent.name] = delegatedAgent.agent.description;
+              }
+            }
+          }
+          piAgent.addTool(createDelegateTool(subAgents));
+          assignedTools.push(`delegate → [${Object.keys(subAgents).join(', ')}]`);
+          console.log(`[runtime]   Assigned delegateTool to "${node.name}" (delegates to: ${Object.keys(subAgents).join(', ')})`);
+        }
+      }
+
+      agentDetails.push({
+        name: agentData.name,
+        model: agentData.model,
+        sessionMode: agentData.sessionMode || 'memory',
+        thinkingLevel: agentData.thinkingLevel || 'medium',
+        tools: assignedTools,
+      });
+    }
+
     // Single agent — run directly
     if (agentNodes.length === 1) {
       const node = agentNodes[0];
-      const { agent, piAgent } = buildAgent(node);
+      const { agent, piAgent } = agentMap.get(node.id)!;
 
       activeAgents.set(sessionId, piAgent);
       sessionAgentMap.set(sessionId, agent._id);
@@ -113,6 +170,7 @@ router.post('/runtime/workflow/compile', async (req, res) => {
         mode: 'single-agent',
         sessionId,
         agent: agent.name,
+        agentDetails,
         executionQueue: executionQueue.map((level) => level.map((n) => ({ id: n.id, type: n.type, name: n.name }))),
       });
       return;
@@ -122,7 +180,7 @@ router.post('/runtime/workflow/compile', async (req, res) => {
     const subAgentEntries: { agentData: AgentData; piAgent: PiAgent }[] = [];
 
     for (const node of agentNodes) {
-      const { agent, piAgent } = buildAgent(node);
+      const { agent, piAgent } = agentMap.get(node.id)!;
       activeAgents.set(`${sessionId}::${agent._id}`, piAgent);
       subAgentEntries.push({ agentData: agent, piAgent });
       console.log(`[runtime] Workflow sub-agent "${agent.name}" (${sessionId}::${agent._id}) created`);
@@ -165,6 +223,7 @@ router.post('/runtime/workflow/compile', async (req, res) => {
       mode: 'orchestrator',
       sessionId,
       agents: agentsForState.map((a) => a.name),
+      agentDetails,
       executionQueue: executionQueue.map((level) => level.map((n) => ({ id: n.id, type: n.type, name: n.name }))),
     });
   } catch (err: any) {

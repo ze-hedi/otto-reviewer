@@ -22,25 +22,20 @@ async function main() {
   console.log("=== Test 1: add memories from a conversation ===");
   const addResult = await mem.add(
     [
-      { role: "user", content: "I'm building a coding agent in TypeScript." },
-      { role: "assistant", content: "Cool! What stack are you using?" },
-      { role: "user", content: "I'm using the Pi coding agent SDK with Anthropic." },
+      { role: "user", content: "I want to become an expert of inference " },
+      { role: "assistant", content: "great with want you want to start" },
+      { role: "user", content: "let's start with the basic on cuda and optimize some kernels" },
     ],
     { userId: "hedi" }
   );
   
   
-  console.log("Added:", JSON.stringify(addResult, null, 2));
 
-  const added_results =   await mem.add(                                                                                    
-    [{ role: "user", content: "I'm learning PyTorch and training a GPT model from scratch." }],
-    { userId: "hedi" }                                                                               
-  );
   
-  console.log("Added 2 ", JSON.stringify(added_results,null,2)) ; 
+  console.log("Added 2 ", JSON.stringify(addResult,null,2)) ; 
 
   console.log("\n=== Test 2: search memories ===");
-  const results = await mem.search("What is the user building?", { userId: "hedi" });
+  const results = await mem.search("is user has any intrest that can be related to cars ??", { userId: "hedi" });
   console.log("Results:", JSON.stringify(results, null, 2));
 
   console.log("\n=== Test 3: getAll ===");
