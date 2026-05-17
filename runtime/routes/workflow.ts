@@ -41,12 +41,12 @@ interface WorkflowRunRequest {
 }
 
 /**
- * POST /runtime/workflow/run
+ * POST /runtime/workflow/compile
  *
  * Receives the workflow graph (nodes + connections) and spins up
  * the corresponding agents/orchestrator in the runtime.
  */
-router.post('/runtime/workflow/run', async (req, res) => {
+router.post('/runtime/workflow/compile', async (req, res) => {
   const { nodes, connections }: WorkflowRunRequest = req.body;
 
   if (!nodes?.length) {

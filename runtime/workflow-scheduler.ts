@@ -107,19 +107,51 @@ export function buildExecutionQueue(
  * Throws if the rule is violated. Returns the result unchanged if valid.
  */
 export function compileGraph(result: ExecutionQueueResult): ExecutionQueueResult {
-  const { levels, successors } = result;
+  const { levels, successors, predecessors } = result;
 
   for (const level of levels) {
     for (const node of level) {
-      if (node.type !== 'agent') continue;
-      const nodeSuccessors = successors.get(node.id) || [];
-      for (const succ of nodeSuccessors) {
-        if (succ.type === 'agent') {
+
+      // Rule 1: agent cannot directly feed into another agent
+      if (node.type === 'agent') {
+        const nodeSuccessors = successors.get(node.id) || [];
+        for (const succ of nodeSuccessors) {
+          if (succ.type === 'agent') {
+            throw new Error(
+              `Invalid workflow: agent "${node.name || node.id}" cannot directly feed into agent "${succ.name || succ.id}" — an interface must sit between them`
+            );
+          }
+        }
+      }
+
+      // Rule 2: every interface must be fed by exactly one agent
+      if (node.type === 'artefact') {
+        const nodePredecessors = predecessors.get(node.id) || [];
+        const agentPredecessors = nodePredecessors.filter((n) => n.type === 'agent');
+        if (agentPredecessors.length === 0) {
           throw new Error(
-            `Invalid workflow: agent "${node.name || node.id}" cannot directly feed into agent "${succ.name || succ.id}" — an interface must sit between them`
+            `Invalid workflow: interface "${node.name || node.id}" must be fed by one agent`
+          );
+        }
+        if (agentPredecessors.length > 1) {
+          throw new Error(
+            `Invalid workflow: interface "${node.name || node.id}" must be fed by exactly one agent, but is fed by ${agentPredecessors.length}`
           );
         }
       }
+
+      // Rule 3: only "Delegate" interface can feed multiple agents; others feed 0 or 1
+      if (node.type === 'artefact') {
+        const nodeSuccessors = successors.get(node.id) || [];
+        const agentSuccessors = nodeSuccessors.filter((n) => n.type === 'agent');
+        const isDelegate = (node.name || '').toLowerCase() === 'delegate';
+        if (!isDelegate && agentSuccessors.length > 1) {
+          throw new Error(
+            `Invalid workflow: interface "${node.name || node.id}" can only feed 0 or 1 agent, but feeds ${agentSuccessors.length} — only "Delegate" can feed multiple agents`
+          );
+        }
+      }
+
     }
   }
 

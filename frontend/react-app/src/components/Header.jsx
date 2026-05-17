@@ -106,10 +106,10 @@ const Header = ({
         <button
           className="tb-btn tb-btn--run"
           onClick={onRun}
-          title="Run workflow"
+          title="Compile workflow"
         >
           <i className="bi bi-play-fill"></i>
-          <span>Run</span>
+          <span>Compile</span>
         </button>
       </div>
     </header>
